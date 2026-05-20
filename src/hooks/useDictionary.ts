@@ -6,10 +6,14 @@ import {
   createCharacter,
 } from '../types';
 import { parseSeedMarkdown, validateParsed } from '../lib/parseSeed';
+import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from '../constants';
 import {
   applyNicknameSeed,
+  dedupeNicknames,
   type NicknameSeed,
 } from '../lib/nicknames';
+import { backfillCreatedAt } from '../lib/characterDates';
+import { migrateCharacter } from '../types';
 import {
   loadIslandFromCloud,
   saveIslandToCloud,
@@ -81,9 +85,10 @@ export function useDictionary({
 
   const applyCharacters = useCallback(
     (chars: Character[]) => {
-      setCharacters(chars);
-      setSelectedId(chars[0]?.id ?? null);
-      persist(chars);
+      const next = backfillCreatedAt(chars);
+      setCharacters(next);
+      setSelectedId(null);
+      persist(next);
     },
     [persist],
   );
@@ -141,8 +146,8 @@ export function useDictionary({
           const cloud = await loadIslandFromCloud(userId);
           if (cloud && cloud.characters.length > 0) {
             if (!cancelled) {
-              setCharacters(cloud.characters);
-              setSelectedId(cloud.characters[0]?.id ?? null);
+              setCharacters(backfillCreatedAt(cloud.characters));
+              setSelectedId(null);
             }
           } else if (seeds) {
             await loadFromSeed();
@@ -157,7 +162,7 @@ export function useDictionary({
             let chars = stored.characters;
             const hasNicknameData = chars.some(
               (c) =>
-                Boolean(c.nicknameDefault) ||
+                (c.nicknameDefaults?.length ?? 0) > 0 ||
                 Object.keys(c.nicknames).length > 0,
             );
             if (!hasNicknameData && seeds) {
@@ -169,8 +174,8 @@ export function useDictionary({
               }
             }
             if (!cancelled) {
-              setCharacters(chars);
-              setSelectedId(chars[0]?.id ?? null);
+              setCharacters(backfillCreatedAt(chars));
+              setSelectedId(null);
             }
           } else if (seeds) {
             await loadFromSeed();
@@ -210,19 +215,25 @@ export function useDictionary({
   const addCharacterFull = useCallback(
     (
       char: Character,
-      incomingNicknames: Record<string, string>,
+      incomingNicknames: Record<string, string[]>,
     ) => {
       updateCharacters((prev) => {
         const next = [
           ...prev.map((c) => {
-            const nick = incomingNicknames[c.id];
-            if (!nick || nick === c.nicknameDefault) return c;
+            const incoming = incomingNicknames[c.id];
+            if (!incoming?.length) return c;
             return {
               ...c,
-              nicknames: { ...c.nicknames, [char.id]: nick },
+              nicknames: {
+                ...c.nicknames,
+                [char.id]: dedupeNicknames([
+                  ...(c.nicknames[char.id] ?? []),
+                  ...incoming,
+                ]),
+              },
             };
           }),
-          char,
+          migrateCharacter(char),
         ];
         return next;
       });
@@ -240,9 +251,10 @@ export function useDictionary({
           const phrases = { ...c.phrases };
           for (const [key, lines] of Object.entries(toAppend)) {
             const type = key as PhraseType;
-            if (lines?.length) {
-              phrases[type] = [...phrases[type], ...lines];
-            }
+            if (!lines?.length) continue;
+            const room = MAX_PHRASES_PER_TYPE - phrases[type].length;
+            if (room <= 0) continue;
+            phrases[type] = [...phrases[type], ...lines.slice(0, room)];
           }
           return { ...c, phrases };
         }),
@@ -251,26 +263,30 @@ export function useDictionary({
     [updateCharacters],
   );
 
-  const applyOutgoingNicknames = useCallback(
+  const appendOutgoingNicknames = useCallback(
     (
       speakerId: string,
-      nicknameDefault: string,
-      nicknames: Record<string, string>,
+      defaultOptions: string[],
+      byTarget: Record<string, string[]>,
     ) => {
       updateCharacters((prev) =>
         prev.map((c) => {
           if (c.id !== speakerId) return c;
-          const cleaned: Record<string, string> = {};
-          for (const [targetId, nick] of Object.entries(nicknames)) {
-            const trimmed = nick.trim();
-            if (trimmed && trimmed !== nicknameDefault) {
-              cleaned[targetId] = trimmed;
-            }
+          const nicknames = { ...c.nicknames };
+          for (const [targetId, additions] of Object.entries(byTarget)) {
+            if (!additions.length) continue;
+            nicknames[targetId] = dedupeNicknames([
+              ...(nicknames[targetId] ?? []),
+              ...additions,
+            ]);
           }
           return {
             ...c,
-            nicknameDefault: nicknameDefault.trim(),
-            nicknames: cleaned,
+            nicknameDefaults: dedupeNicknames([
+              ...c.nicknameDefaults,
+              ...defaultOptions,
+            ]),
+            nicknames,
           };
         }),
       );
@@ -278,20 +294,22 @@ export function useDictionary({
     [updateCharacters],
   );
 
-  const applyIncomingNicknames = useCallback(
-    (targetId: string, bySpeaker: Record<string, string>) => {
+  const appendIncomingNicknames = useCallback(
+    (targetId: string, bySpeaker: Record<string, string[]>) => {
       updateCharacters((prev) =>
         prev.map((c) => {
-          const nick = bySpeaker[c.id];
-          if (!nick) return c;
-          const trimmed = nick.trim();
-          const nicknames = { ...c.nicknames };
-          if (!trimmed || trimmed === c.nicknameDefault) {
-            delete nicknames[targetId];
-          } else {
-            nicknames[targetId] = trimmed;
-          }
-          return { ...c, nicknames };
+          const additions = bySpeaker[c.id];
+          if (!additions?.length) return c;
+          return {
+            ...c,
+            nicknames: {
+              ...c.nicknames,
+              [targetId]: dedupeNicknames([
+                ...(c.nicknames[targetId] ?? []),
+                ...additions,
+              ]),
+            },
+          };
         }),
       );
     },
@@ -326,6 +344,17 @@ export function useDictionary({
     [updateCharacters],
   );
 
+  const updateCharacterAvatar = useCallback(
+    (id: string, avatar: string | undefined) => {
+      updateCharacters((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, avatar: avatar || undefined } : c,
+        ),
+      );
+    },
+    [updateCharacters],
+  );
+
   const updatePhrase = useCallback(
     (charId: string, type: PhraseType, index: number, text: string) => {
       updateCharacters((prev) =>
@@ -347,6 +376,7 @@ export function useDictionary({
       updateCharacters((prev) =>
         prev.map((c) => {
           if (c.id !== charId) return c;
+          if (c.phrases[type].length >= MAX_PHRASES_PER_TYPE) return c;
           const phrases = { ...c.phrases };
           phrases[type] = [...phrases[type], text];
           return { ...c, phrases };
@@ -370,31 +400,98 @@ export function useDictionary({
     [updateCharacters],
   );
 
-  const updateNicknameDefault = useCallback(
-    (speakerId: string, value: string) => {
+  const updateNicknameDefaultAt = useCallback(
+    (speakerId: string, index: number, value: string) => {
       updateCharacters((prev) =>
-        prev.map((c) =>
-          c.id === speakerId
-            ? { ...c, nicknameDefault: value.trim() }
-            : c,
-        ),
+        prev.map((c) => {
+          if (c.id !== speakerId) return c;
+          const list = [...c.nicknameDefaults];
+          list[index] = value;
+          return {
+            ...c,
+            nicknameDefaults: dedupeNicknames(list),
+          };
+        }),
       );
     },
     [updateCharacters],
   );
 
-  const updateNickname = useCallback(
-    (speakerId: string, targetId: string, value: string) => {
+  const addNicknameDefault = useCallback((speakerId: string, value = '') => {
+    updateCharacters((prev) =>
+      prev.map((c) => {
+        if (c.id !== speakerId) return c;
+        if (c.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return c;
+        return {
+          ...c,
+          nicknameDefaults: dedupeNicknames([...c.nicknameDefaults, value]),
+        };
+      }),
+    );
+  }, [updateCharacters]);
+
+  const removeNicknameDefault = useCallback(
+    (speakerId: string, index: number) => {
+      updateCharacters((prev) =>
+        prev.map((c) => {
+          if (c.id !== speakerId) return c;
+          return {
+            ...c,
+            nicknameDefaults: c.nicknameDefaults.filter((_, i) => i !== index),
+          };
+        }),
+      );
+    },
+    [updateCharacters],
+  );
+
+  const updateNicknameAt = useCallback(
+    (speakerId: string, targetId: string, index: number, value: string) => {
       updateCharacters((prev) =>
         prev.map((c) => {
           if (c.id !== speakerId) return c;
           const nicknames = { ...c.nicknames };
-          const trimmed = value.trim();
-          if (!trimmed || trimmed === c.nicknameDefault) {
-            delete nicknames[targetId];
-          } else {
-            nicknames[targetId] = trimmed;
-          }
+          const list = [...(nicknames[targetId] ?? [])];
+          list[index] = value;
+          const cleaned = dedupeNicknames(list);
+          if (cleaned.length) nicknames[targetId] = cleaned;
+          else delete nicknames[targetId];
+          return { ...c, nicknames };
+        }),
+      );
+    },
+    [updateCharacters],
+  );
+
+  const addNicknameForTarget = useCallback(
+    (speakerId: string, targetId: string, value = '') => {
+      updateCharacters((prev) =>
+        prev.map((c) => {
+          if (c.id !== speakerId) return c;
+          const current = c.nicknames[targetId] ?? [];
+          if (current.length >= MAX_NICKNAME_OPTIONS) return c;
+          return {
+            ...c,
+            nicknames: {
+              ...c.nicknames,
+              [targetId]: dedupeNicknames([...current, value]),
+            },
+          };
+        }),
+      );
+    },
+    [updateCharacters],
+  );
+
+  const removeNicknameAt = useCallback(
+    (speakerId: string, targetId: string, index: number) => {
+      updateCharacters((prev) =>
+        prev.map((c) => {
+          if (c.id !== speakerId) return c;
+          const nicknames = { ...c.nicknames };
+          const list = (nicknames[targetId] ?? []).filter((_, i) => i !== index);
+          if (list.length) nicknames[targetId] = list;
+          else delete nicknames[targetId];
           return { ...c, nicknames };
         }),
       );
@@ -416,16 +513,21 @@ export function useDictionary({
     addCharacter,
     addCharacterFull,
     appendPhrasesBatch,
-    applyOutgoingNicknames,
-    applyIncomingNicknames,
+    appendOutgoingNicknames,
+    appendIncomingNicknames,
     applyCharacters,
     removeCharacter,
     updateCharacterName,
+    updateCharacterAvatar,
     updatePhrase,
     addPhrase,
     removePhrase,
-    updateNickname,
-    updateNicknameDefault,
+    updateNicknameAt,
+    addNicknameForTarget,
+    removeNicknameAt,
+    updateNicknameDefaultAt,
+    addNicknameDefault,
+    removeNicknameDefault,
     resetFromSeed,
     clearAllData,
   };

@@ -1,32 +1,44 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  getGridSort,
+  getIncomingNickOpen,
+  getOutgoingNickOpen,
+  setGridSort,
+  setIncomingNickOpen,
+  setOutgoingNickOpen,
+  type GridSort,
+} from './lib/uiPrefs';
+import { sortCharacters } from './lib/sortCharacters';
 import { useDictionary } from './hooks/useDictionary';
 import { useSettings } from './hooks/useSettings';
 import { Sidebar } from './components/Sidebar';
 import { CharacterEditor } from './components/CharacterEditor';
+import { CharacterGrid } from './components/CharacterGrid';
 import { ConfigPage } from './components/ConfigPage';
+import { TosPage } from './components/TosPage';
 import { SyncBanner } from './components/SyncBanner';
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
-import { PhrasesGenerationModal } from './components/PhrasesGenerationModal';
-import { NicknamesGenerationModal } from './components/NicknamesGenerationModal';
 import { GeminiError } from './lib/gemini/client';
 import {
   buildFullCharacterPrompt,
-  buildMorePhrasesPrompt,
-  buildRegenerateNicknamesPrompt,
+  buildOneDefaultNicknamePrompt,
+  buildOneIncomingNicknamePrompt,
+  buildOnePhrasePrompt,
+  buildOneTargetNicknamePrompt,
 } from './lib/gemini/prompts';
 import {
   generateFullCharacter,
-  generateMorePhrases,
-  regenerateNicknames,
+  generateOneNickname,
+  generateOnePhrase,
 } from './lib/gemini/client';
 import type { FullCharacterGeneration } from './lib/gemini/types';
-import type { GeneratedPhrases } from './lib/gemini/types';
-import type { NicknameRegeneration } from './lib/gemini/types';
 import type { PhraseType } from './types';
 import type { AuthMode } from './components/AuthScreen';
+import { emailToDisplayUsername } from './lib/authUsername';
+import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
 
-type View = 'main' | 'config';
+type View = 'main' | 'config' | 'tos';
 
 interface AppMainProps {
   storageMode: 'local' | 'cloud';
@@ -34,7 +46,7 @@ interface AppMainProps {
   userEmail?: string;
   syncAvailable: boolean;
   onSignOut: () => void;
-  onOpenAuth: (mode: AuthMode, migrateHint?: boolean) => void;
+  onOpenAuth: (mode: AuthMode) => void;
 }
 
 export function AppMain({
@@ -48,20 +60,19 @@ export function AppMain({
   const { apiKey, setApiKey, hasApiKey } = useSettings();
   const [view, setView] = useState<View>('main');
   const [showNewCharModal, setShowNewCharModal] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
+  const [gridSort, setGridSortState] = useState<GridSort>(getGridSort);
+  const [outgoingNickOpen, setOutgoingNickOpenState] = useState(
+    getOutgoingNickOpen,
+  );
+  const [incomingNickOpen, setIncomingNickOpenState] = useState(
+    getIncomingNickOpen,
+  );
 
   const [newCharReview, setNewCharReview] = useState<{
     name: string;
     generation: FullCharacterGeneration;
-  } | null>(null);
-
-  const [phrasesReview, setPhrasesReview] = useState<{
-    generation: GeneratedPhrases;
-  } | null>(null);
-
-  const [nicknamesReview, setNicknamesReview] = useState<{
-    generation: NicknameRegeneration;
   } | null>(null);
 
   const {
@@ -75,25 +86,49 @@ export function AppMain({
     syncError,
     addCharacter,
     addCharacterFull,
-    appendPhrasesBatch,
-    applyOutgoingNicknames,
-    applyIncomingNicknames,
     removeCharacter,
     updateCharacterName,
+    updateCharacterAvatar,
     updatePhrase,
     addPhrase,
     removePhrase,
-    updateNickname,
-    updateNicknameDefault,
+    updateNicknameAt,
+    addNicknameForTarget,
+    removeNicknameAt,
+    updateNicknameDefaultAt,
+    addNicknameDefault,
+    removeNicknameDefault,
     resetFromSeed,
     clearAllData,
     seedsAvailable,
   } = useDictionary({ storageMode, userId });
 
-  const runGeneration = useCallback(
-    async <T,>(fn: () => Promise<T>): Promise<T | null> => {
+  const displayUser = emailToDisplayUsername(userEmail);
+
+  const sidebarCharacters = useMemo(
+    () => sortCharacters(characters, 'name'),
+    [characters],
+  );
+
+  const handleGridSortChange = (sort: GridSort) => {
+    setGridSortState(sort);
+    setGridSort(sort);
+  };
+
+  const handleOutgoingNickOpenChange = (open: boolean) => {
+    setOutgoingNickOpenState(open);
+    setOutgoingNickOpen(open);
+  };
+
+  const handleIncomingNickOpenChange = (open: boolean) => {
+    setIncomingNickOpenState(open);
+    setIncomingNickOpen(open);
+  };
+
+  const runAi = useCallback(
+    async <T,>(key: string, fn: () => Promise<T>): Promise<T | null> => {
       if (!hasApiKey) return null;
-      setGenerating(true);
+      setGeneratingKey(key);
       setGenError(null);
       try {
         return await fn();
@@ -107,7 +142,7 @@ export function AppMain({
         setGenError(msg);
         return null;
       } finally {
-        setGenerating(false);
+        setGeneratingKey(null);
       }
     },
     [hasApiKey],
@@ -116,7 +151,7 @@ export function AppMain({
   const handleAddWithGeneration = useCallback(
     async (name: string) => {
       setShowNewCharModal(false);
-      const generation = await runGeneration(() =>
+      const generation = await runAi('newchar', () =>
         generateFullCharacter(
           apiKey,
           buildFullCharacterPrompt(name, characters),
@@ -126,68 +161,89 @@ export function AppMain({
         setNewCharReview({ name, generation });
       }
     },
-    [apiKey, characters, runGeneration],
+    [apiKey, characters, runAi],
   );
 
   const handleConfirmNewCharacter = useCallback(
     (result: {
       character: import('./types').Character;
-      incomingBySpeakerId: Record<string, string>;
+      incomingBySpeakerId: Record<string, string[]>;
     }) => {
       addCharacterFull(result.character, result.incomingBySpeakerId);
       setNewCharReview(null);
+      setSelectedId(result.character.id);
     },
-    [addCharacterFull],
+    [addCharacterFull, setSelectedId],
   );
 
-  const handleGeneratePhrases = useCallback(async () => {
-    if (!selected) return;
-    const generation = await runGeneration(() =>
-      generateMorePhrases(
-        apiKey,
-        buildMorePhrasesPrompt(selected, characters),
-      ),
-    );
-    if (generation) setPhrasesReview({ generation });
-  }, [apiKey, characters, selected, runGeneration]);
-
-  const handleConfirmPhrases = useCallback(
-    (toAppend: Partial<Record<PhraseType, string[]>>) => {
+  const handleGeneratePhrase = useCallback(
+    async (type: PhraseType) => {
       if (!selected) return;
-      appendPhrasesBatch(selected.id, toAppend);
-      setPhrasesReview(null);
-    },
-    [appendPhrasesBatch, selected],
-  );
-
-  const handleRegenerateNicknames = useCallback(async () => {
-    if (!selected) return;
-    const generation = await runGeneration(() =>
-      regenerateNicknames(
-        apiKey,
-        buildRegenerateNicknamesPrompt(selected, characters),
-      ),
-    );
-    if (generation) setNicknamesReview({ generation });
-  }, [apiKey, characters, selected, runGeneration]);
-
-  const handleConfirmNicknames = useCallback(
-    (result: {
-      nicknameDefault: string;
-      outgoing: Record<string, string>;
-      incomingBySpeakerId: Record<string, string>;
-    }) => {
-      if (!selected) return;
-      applyOutgoingNicknames(
-        selected.id,
-        result.nicknameDefault,
-        result.outgoing,
+      if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
+      const line = await runAi(`phrase:${type}`, () =>
+        generateOnePhrase(
+          apiKey,
+          buildOnePhrasePrompt(selected, characters, type),
+        ),
       );
-      applyIncomingNicknames(selected.id, result.incomingBySpeakerId);
-      setNicknamesReview(null);
+      if (line) addPhrase(selected.id, type, line);
     },
-    [applyIncomingNicknames, applyOutgoingNicknames, selected],
+    [addPhrase, apiKey, characters, runAi, selected],
   );
+
+  const handleGenerateDefaultNickname = useCallback(async () => {
+    if (!selected) return;
+    if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
+    const nick = await runAi('nick:default', () =>
+      generateOneNickname(
+        apiKey,
+        buildOneDefaultNicknamePrompt(selected, characters),
+      ),
+    );
+    if (nick) addNicknameDefault(selected.id, nick);
+  }, [addNicknameDefault, apiKey, characters, runAi, selected]);
+
+  const handleGenerateOutgoingNickname = useCallback(
+    async (targetId: string) => {
+      if (!selected) return;
+      const target = characters.find((c) => c.id === targetId);
+      if (!target) return;
+      const current = selected.nicknames[targetId] ?? [];
+      if (current.length >= MAX_NICKNAME_OPTIONS) return;
+      const nick = await runAi(`nick:out:${targetId}`, () =>
+        generateOneNickname(
+          apiKey,
+          buildOneTargetNicknamePrompt(selected, target, characters),
+        ),
+      );
+      if (nick) addNicknameForTarget(selected.id, targetId, nick);
+    },
+    [addNicknameForTarget, apiKey, characters, runAi, selected],
+  );
+
+  const handleGenerateIncomingNickname = useCallback(
+    async (speakerId: string) => {
+      if (!selected) return;
+      const speaker = characters.find((c) => c.id === speakerId);
+      if (!speaker) return;
+      const current = speaker.nicknames[selected.id] ?? [];
+      if (current.length >= MAX_NICKNAME_OPTIONS) return;
+      const nick = await runAi(`nick:in:${speakerId}`, () =>
+        generateOneNickname(
+          apiKey,
+          buildOneIncomingNicknamePrompt(selected, speaker, characters),
+        ),
+      );
+      if (nick) addNicknameForTarget(speakerId, selected.id, nick);
+    },
+    [addNicknameForTarget, apiKey, characters, runAi, selected],
+  );
+
+  const handleDeleteCharacter = useCallback(() => {
+    if (!selected) return;
+    removeCharacter(selected.id);
+    setSelectedId(null);
+  }, [removeCharacter, selected, setSelectedId]);
 
   if (loading) {
     return (
@@ -215,64 +271,100 @@ export function AppMain({
     );
   }
 
+  if (view === 'tos') {
+    return <TosPage onBack={() => setView('main')} />;
+  }
+
   return (
     <div className="app">
       <Sidebar
-        characters={characters}
+        characters={sidebarCharacters}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onAdd={() => setShowNewCharModal(true)}
         onReset={resetFromSeed}
         onClearAll={clearAllData}
         onOpenConfig={() => setView('config')}
+        onOpenTos={() => setView('tos')}
         hasApiKey={hasApiKey}
         seedsAvailable={seedsAvailable}
       />
       <div className="main-area">
         <SyncBanner
           mode={storageMode}
-          email={userEmail}
+          displayName={displayUser}
           syncStatus={syncStatus}
           syncError={syncError}
           syncAvailable={syncAvailable}
-          onCreateAccount={() => onOpenAuth('signUp', true)}
+          onCreateAccount={() => onOpenAuth('signUp')}
           onSignIn={() => onOpenAuth('signIn')}
           onSignOut={onSignOut}
         />
-        {generating && (
-          <div className="gen-overlay">
-            <p>Generating with Gemini…</p>
-          </div>
-        )}
         {selected ? (
           <CharacterEditor
             character={selected}
             allCharacters={characters}
-            hasApiKey={hasApiKey}
-            generating={generating}
-            genError={genError}
+            onBack={() => setSelectedId(null)}
             onNameChange={(name) => updateCharacterName(selected.id, name)}
-            onDelete={() => removeCharacter(selected.id)}
+            onAvatarChange={(avatar) =>
+              updateCharacterAvatar(selected.id, avatar)
+            }
+            onDelete={handleDeleteCharacter}
             onUpdatePhrase={(type, index, text) =>
               updatePhrase(selected.id, type, index, text)
             }
-            onAddPhrase={(type) => addPhrase(selected.id, type)}
+            onAddPhrase={(type, text) => addPhrase(selected.id, type, text)}
             onRemovePhrase={(type, index) =>
               removePhrase(selected.id, type, index)
             }
-            onUpdateNicknameDefault={(value) =>
-              updateNicknameDefault(selected.id, value)
+            hasApiKey={hasApiKey}
+            generatingKey={generatingKey}
+            genError={genError}
+            onUpdateNicknameDefaultAt={(index, value) =>
+              updateNicknameDefaultAt(selected.id, index, value)
             }
-            onUpdateNickname={(targetId, value) =>
-              updateNickname(selected.id, targetId, value)
+            onAddNicknameDefault={(value) =>
+              addNicknameDefault(selected.id, value)
             }
-            onGeneratePhrases={handleGeneratePhrases}
-            onRegenerateNicknames={handleRegenerateNicknames}
+            onRemoveNicknameDefault={(index) =>
+              removeNicknameDefault(selected.id, index)
+            }
+            onUpdateNicknameAt={(targetId, index, value) =>
+              updateNicknameAt(selected.id, targetId, index, value)
+            }
+            onAddNickname={(targetId, value) =>
+              addNicknameForTarget(selected.id, targetId, value)
+            }
+            onRemoveNickname={(targetId, index) =>
+              removeNicknameAt(selected.id, targetId, index)
+            }
+            onUpdateIncomingAt={(speakerId, index, value) =>
+              updateNicknameAt(speakerId, selected.id, index, value)
+            }
+            onAddIncoming={(speakerId, value) =>
+              addNicknameForTarget(speakerId, selected.id, value)
+            }
+            onRemoveIncoming={(speakerId, index) =>
+              removeNicknameAt(speakerId, selected.id, index)
+            }
+            onGeneratePhrase={handleGeneratePhrase}
+            onGenerateDefaultNickname={handleGenerateDefaultNickname}
+            onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
+            onGenerateIncomingNickname={handleGenerateIncomingNickname}
+            onOpenCharacter={setSelectedId}
+            outgoingNickOpen={outgoingNickOpen}
+            incomingNickOpen={incomingNickOpen}
+            onOutgoingNickOpenChange={handleOutgoingNickOpenChange}
+            onIncomingNickOpenChange={handleIncomingNickOpenChange}
           />
         ) : (
-          <div className="empty-state">
-            <p>Select a character from the list, or add a new one.</p>
-          </div>
+          <CharacterGrid
+            characters={characters}
+            sort={gridSort}
+            onSortChange={handleGridSortChange}
+            onSelect={setSelectedId}
+            onAdd={() => setShowNewCharModal(true)}
+          />
         )}
       </div>
 
@@ -281,8 +373,9 @@ export function AppMain({
           hasApiKey={hasApiKey}
           onClose={() => setShowNewCharModal(false)}
           onAddPlain={(name) => {
-            addCharacter(name);
+            const c = addCharacter(name);
             setShowNewCharModal(false);
+            if (c) setSelectedId(c.id);
           }}
           onAddWithGeneration={handleAddWithGeneration}
         />
@@ -295,25 +388,6 @@ export function AppMain({
           existingCharacters={characters}
           onConfirm={handleConfirmNewCharacter}
           onClose={() => setNewCharReview(null)}
-        />
-      )}
-
-      {phrasesReview && selected && (
-        <PhrasesGenerationModal
-          characterName={selected.name}
-          generation={phrasesReview.generation}
-          onConfirm={handleConfirmPhrases}
-          onClose={() => setPhrasesReview(null)}
-        />
-      )}
-
-      {nicknamesReview && selected && (
-        <NicknamesGenerationModal
-          character={selected}
-          generation={nicknamesReview.generation}
-          allCharacters={characters}
-          onConfirm={handleConfirmNicknames}
-          onClose={() => setNicknamesReview(null)}
         />
       )}
     </div>

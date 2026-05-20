@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { AppMain } from './AppMain';
 import { WelcomeScreen } from './components/WelcomeScreen';
-import { AuthScreen, type AuthMode } from './components/AuthScreen';
+import {
+  AuthScreen,
+  type AuthMode,
+  type SignUpIslandChoice,
+} from './components/AuthScreen';
 import {
   getAppStorageMode,
   setAppStorageMode,
@@ -11,13 +15,13 @@ import {
 import { loadIslandFromCloud, saveIslandToCloud } from './lib/cloudStorage';
 import { getSupabase } from './lib/supabase';
 import { loadFromStorage } from './lib/storage';
+import { usernameToEmail } from './lib/authUsername';
 import './index.css';
 
 function App() {
   const auth = useAuth();
   const [appMode, setAppMode] = useState(getAppStorageMode);
   const [authView, setAuthView] = useState<AuthMode | null>(null);
-  const [migrateHint, setMigrateHint] = useState(false);
 
   useEffect(() => {
     if (auth.user) {
@@ -44,25 +48,35 @@ function App() {
     setAuthView(null);
   };
 
-  const handleOpenAuth = (mode: AuthMode, hint = false) => {
+  const handleOpenAuth = (mode: AuthMode) => {
     setAuthView(mode);
-    setMigrateHint(hint);
   };
 
   const handleAuthSubmit = useCallback(
-    async (email: string, password: string) => {
+    async (
+      mode: AuthMode,
+      username: string,
+      password: string,
+      islandChoice?: SignUpIslandChoice,
+    ) => {
       const supabase = getSupabase();
+      const email = usernameToEmail(username);
 
-      if (authView === 'signUp') {
+      if (mode === 'signUp') {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session?.user) {
           throw new Error(
-            'Account created. Confirm your email in Supabase (or disable email confirmation in Auth settings), then sign in.',
+            'Account created. If sign-in fails, disable email confirmation in Supabase Auth settings, then try again.',
           );
         }
-        if (migrateHint || (loadFromStorage()?.characters.length ?? 0) > 0) {
+        if (islandChoice === 'local') {
           await migrateLocalToCloud(data.session.user.id);
+        } else {
+          await saveIslandToCloud(data.session.user.id, {
+            version: 1,
+            characters: [],
+          });
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -86,9 +100,8 @@ function App() {
       setAppStorageMode('cloud');
       setAppMode('cloud');
       setAuthView(null);
-      setMigrateHint(false);
     },
-    [authView, migrateHint, migrateLocalToCloud],
+    [migrateLocalToCloud],
   );
 
   const handleSignOut = async () => {
@@ -97,6 +110,8 @@ function App() {
     setAppMode('unset');
     setAuthView(null);
   };
+
+  const hasLocalData = (loadFromStorage()?.characters.length ?? 0) > 0;
 
   if (auth.loading) {
     return (
@@ -123,11 +138,8 @@ function App() {
     return (
       <AuthScreen
         mode={authView}
-        migrateHint={migrateHint}
-        onBack={() => {
-          setAuthView(null);
-          setMigrateHint(false);
-        }}
+        hasLocalData={hasLocalData}
+        onBack={() => setAuthView(null)}
         onSubmit={handleAuthSubmit}
       />
     );

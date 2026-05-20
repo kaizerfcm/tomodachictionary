@@ -1,6 +1,6 @@
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
-import { getEffectiveNickname } from '../nicknames';
+import { getAllNicknamesForSearch, getEffectiveNickname } from '../nicknames';
 
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
@@ -28,7 +28,11 @@ export function buildIslandSnapshot(
         Object.keys(samples).length > 0
           ? JSON.stringify(samples)
           : '(no lines yet)';
-      return `- ${c.name}: default_address="${c.nicknameDefault || '(none)'}"; samples=${sampleStr}`;
+      const defaults =
+        c.nicknameDefaults.length > 0
+          ? c.nicknameDefaults.join(' | ')
+          : '(none)';
+      return `- ${c.name}: default_addresses="${defaults}"; samples=${sampleStr}`;
     })
     .join('\n');
 }
@@ -58,9 +62,9 @@ Rules:
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (can start with punctuation).
 - "Shout at the sea" = ALL CAPS energy.
 - Provide exactly 3 distinct options per phrase type (triplets).
-- nicknameDefault: how THIS character addresses strangers / new islanders they don't know well.
-- byTargetName: for EACH existing islander listed, 3 nickname options THIS character would use (insulting, affectionate, or in-joke — match island tone).
-- incoming.bySpeakerName: for EACH existing islander, 3 nickname options THEY would use for "${newName}" (from their voice; use their default_address style from samples).
+- nicknameDefault: exactly 3 default nicknames for strangers / new islanders.
+- byTargetName: for EACH existing islander listed, 3 nickname options THIS character would use.
+- incoming.bySpeakerName: for EACH existing islander, 3 nickname options THEY would use for "${newName}".
 
 Return ONLY valid JSON:
 {
@@ -86,83 +90,81 @@ Return ONLY valid JSON:
 }`;
 }
 
-export function buildMorePhrasesPrompt(
-  character: Character,
-  allCharacters: Character[],
-): string {
-  const existing = Object.fromEntries(
-    PHRASE_TYPES.map(({ key }) => [key, character.phrases[key]]),
-  );
-
-  return `You are writing MORE Tomodachi Life dialogue lines for "${character.name}".
-
-Island tone reference:
-${buildIslandSnapshot(allCharacters, character.id)}
-
-EXISTING LINES (do NOT duplicate or lightly rephrase these):
-${JSON.stringify(existing, null, 2)}
-
-Phrase types (exact JSON keys):
-${PHRASE_TYPE_LIST}
-
-Provide exactly 3 NEW options per type — fresh lines, same voice, no repeats.
-
-Return ONLY valid JSON:
-{
-  "phrases": {
-    "catchphrases": ["", "", ""],
-    "startingSentence": ["", "", ""],
-    "endingSentence": ["", "", ""],
-    "beforeEating": ["", "", ""],
-    "shoutAtSea": ["", "", ""],
-    "whenHappy": ["", "", ""],
-    "whenSad": ["", "", ""],
-    "whenAngry": ["", "", ""],
-    "whileSleeping": ["", "", ""],
-    "greeting": ["", "", ""]
-  }
-}`;
+function phraseLabel(type: PhraseType): string {
+  return PHRASE_TYPES.find((t) => t.key === type)?.label ?? type;
 }
 
-export function buildRegenerateNicknamesPrompt(
+export function buildOnePhrasePrompt(
+  character: Character,
+  allCharacters: Character[],
+  type: PhraseType,
+): string {
+  const existing = character.phrases[type].filter(Boolean);
+  return `Write ONE new Tomodachi Life dialogue line for "${character.name}".
+
+Type: ${phraseLabel(type)} (JSON key: ${type})
+
+Island tone:
+${buildIslandSnapshot(allCharacters, character.id)}
+
+EXISTING lines for this type (do NOT duplicate):
+${JSON.stringify(existing)}
+
+Rules: under ~80 chars, spoken aloud, in-character. "Shout at the sea" = ALL CAPS.
+
+Return ONLY valid JSON: { "line": "your new line here" }`;
+}
+
+export function buildOneDefaultNicknamePrompt(
   character: Character,
   allCharacters: Character[],
 ): string {
-  const others = allCharacters.filter((c) => c.id !== character.id);
-  const outgoingCurrent: Record<string, string> = {
-    _default: character.nicknameDefault || '(empty)',
-  };
-  for (const t of others) {
-    outgoingCurrent[t.name] = getEffectiveNickname(character, t);
-  }
-
-  const incomingCurrent: Record<string, string> = {};
-  for (const speaker of others) {
-    incomingCurrent[speaker.name] = getEffectiveNickname(speaker, character);
-  }
-
-  return `You are refining Tomodachi Life island nicknames for "${character.name}".
+  const existing = character.nicknameDefaults;
+  return `Write ONE default nickname "${character.name}" would use for strangers / new islanders they do not know well.
 
 Island context:
 ${buildIslandSnapshot(allCharacters, character.id)}
 
-CURRENT — how "${character.name}" calls others:
-${JSON.stringify(outgoingCurrent, null, 2)}
+EXISTING defaults (do NOT duplicate):
+${JSON.stringify(existing)}
 
-CURRENT — how others call "${character.name}":
-${JSON.stringify(incomingCurrent, null, 2)}
+Return ONLY valid JSON: { "nickname": "one nickname" }`;
+}
 
-Improve nicknames to be funnier, more in-character, and consistent with the island tone. Keep good existing ones but you may offer better alternatives in the 3 options.
+export function buildOneTargetNicknamePrompt(
+  character: Character,
+  target: Character,
+  allCharacters: Character[],
+): string {
+  const existing = character.nicknames[target.id] ?? [];
+  return `Write ONE nickname "${character.name}" would use to address "${target.name}".
 
-Targets to include in byTargetName: ${others.map((c) => c.name).join(', ')}
-Speakers to include in incoming.bySpeakerName: ${others.map((c) => c.name).join(', ')}
+Island context:
+${buildIslandSnapshot(allCharacters, character.id)}
 
-Return ONLY valid JSON:
-{
-  "nicknameDefault": ["", "", ""],
-  "byTargetName": { "Target Name": ["", "", ""] },
-  "incoming": {
-    "bySpeakerName": { "Speaker Name": ["", "", ""] }
-  }
-}`;
+EXISTING nicknames for ${target.name} (do NOT duplicate):
+${JSON.stringify(existing.length ? existing : [getEffectiveNickname(character, target)])}
+
+Return ONLY valid JSON: { "nickname": "one nickname" }`;
+}
+
+export function buildOneIncomingNicknamePrompt(
+  subject: Character,
+  speaker: Character,
+  allCharacters: Character[],
+): string {
+  const existing = speaker.nicknames[subject.id] ?? [];
+  return `Write ONE nickname "${speaker.name}" would use to address "${subject.name}" (from ${speaker.name}'s voice).
+
+Island context:
+${buildIslandSnapshot(allCharacters, subject.id)}
+
+EXISTING nicknames ${speaker.name} uses for ${subject.name} (do NOT duplicate):
+${JSON.stringify(
+    existing.length
+      ? existing
+      : getAllNicknamesForSearch(speaker, subject).filter(Boolean),
+  )}
+
+Return ONLY valid JSON: { "nickname": "one nickname" }`;
 }

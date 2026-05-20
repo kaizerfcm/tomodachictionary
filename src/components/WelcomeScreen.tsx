@@ -27,8 +27,8 @@ export function WelcomeScreen({
           Continue locally
         </button>
         <p className="welcome-hint">
-          Data stays in this browser only. You can create an account later to
-          sync across devices.
+          Data stays in this browser only. Create a free account anytime to sync
+          across devices (username + password, no email).
         </p>
 
         {syncAvailable ? (
@@ -38,20 +38,21 @@ export function WelcomeScreen({
             </div>
             <button
               type="button"
+              className="btn btn-primary btn-block"
+              onClick={onSignUp}
+            >
+              Create account
+            </button>
+            <button
+              type="button"
               className="btn btn-secondary btn-block"
               onClick={onSignIn}
             >
               Sign in
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary btn-block"
-              onClick={onSignUp}
-            >
-              Create account
-            </button>
             <p className="welcome-hint">
-              Free cloud save via Supabase. Same island on phone and PC.
+              Cloud save via Supabase. Use your current island or start fresh when
+              you sign up.
             </p>
           </>
         ) : (

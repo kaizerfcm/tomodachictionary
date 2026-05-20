@@ -1,6 +1,7 @@
 import {
   type Character,
   type PhraseType,
+  createCharacter,
   emptyPhrases,
   PHRASE_TYPES,
 } from '../types';
@@ -80,11 +81,8 @@ export function parseSeedMarkdown(markdown: string): Character[] {
     }
 
     characters.push({
-      id,
-      name: rawName,
+      ...createCharacter(rawName, id),
       phrases,
-      nicknameDefault: '',
-      nicknames: {},
     });
   }
 

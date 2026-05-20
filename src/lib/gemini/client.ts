@@ -2,7 +2,6 @@ import { PHRASE_TYPES, type PhraseType } from '../../types';
 import type {
   FullCharacterGeneration,
   GeneratedPhrases,
-  NicknameRegeneration,
   Triplet,
 } from './types';
 
@@ -89,6 +88,12 @@ function parseTripletsMap(
   return out;
 }
 
+function assertLine(raw: Record<string, unknown>, key: string): string {
+  const line = String(raw[key] ?? '').trim();
+  if (!line) throw new GeminiError(`Empty ${key} in response`);
+  return line;
+}
+
 export async function generateFullCharacter(
   apiKey: string,
   prompt: string,
@@ -121,32 +126,18 @@ export async function generateFullCharacter(
   };
 }
 
-export async function generateMorePhrases(
+export async function generateOnePhrase(
   apiKey: string,
   prompt: string,
-): Promise<GeneratedPhrases> {
+): Promise<string> {
   const raw = parseJson<Record<string, unknown>>(await callGemini(apiKey, prompt));
-  const phrasesRaw = raw.phrases as Record<string, unknown>;
-  if (!phrasesRaw) throw new GeminiError('Missing phrases in response');
-  return parsePhrases(phrasesRaw);
+  return assertLine(raw, 'line');
 }
 
-export async function regenerateNicknames(
+export async function generateOneNickname(
   apiKey: string,
   prompt: string,
-): Promise<NicknameRegeneration> {
+): Promise<string> {
   const raw = parseJson<Record<string, unknown>>(await callGemini(apiKey, prompt));
-  const incomingRaw = (raw.incoming as Record<string, unknown>) ?? {};
-
-  return {
-    nicknameDefault: assertTriplet(raw.nicknameDefault, 'nicknameDefault'),
-    byTargetName: parseTripletsMap(
-      raw.byTargetName as Record<string, unknown>,
-    ),
-    incoming: {
-      bySpeakerName: parseTripletsMap(
-        incomingRaw.bySpeakerName as Record<string, unknown>,
-      ),
-    },
-  };
+  return assertLine(raw, 'nickname');
 }

@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
-import { PHRASE_TYPES, emptyPhrases, type Character, type PhraseType } from '../types';
+import {
+  PHRASE_TYPES,
+  createCharacter,
+  emptyPhrases,
+  type Character,
+  type PhraseType,
+} from '../types';
 import type { FullCharacterGeneration } from '../lib/gemini/types';
-import { OptionTriplet, OptionTripletMulti } from './OptionTriplet';
+import { OptionTripletMulti } from './OptionTriplet';
 import { Modal } from './Modal';
 
 interface NewCharacterReviewModalProps {
@@ -10,9 +16,13 @@ interface NewCharacterReviewModalProps {
   existingCharacters: Character[];
   onConfirm: (result: {
     character: Character;
-    incomingBySpeakerId: Record<string, string>;
+    incomingBySpeakerId: Record<string, string[]>;
   }) => void;
   onClose: () => void;
+}
+
+function tripletPicks() {
+  return [true, true, true] as boolean[];
 }
 
 export function NewCharacterReviewModal({
@@ -24,20 +34,26 @@ export function NewCharacterReviewModal({
 }: NewCharacterReviewModalProps) {
   const [phrasePicks, setPhrasePicks] = useState(() =>
     Object.fromEntries(
-      PHRASE_TYPES.map(({ key }) => [key, [true, true, true] as boolean[]]),
+      PHRASE_TYPES.map(({ key }) => [key, tripletPicks()]),
     ) as Record<PhraseType, boolean[]>,
   );
-  const [defaultPick, setDefaultPick] = useState(0);
-  const [outgoingPicks, setOutgoingPicks] = useState<Record<string, number>>(
+  const [defaultPicks, setDefaultPicks] = useState(tripletPicks);
+  const [outgoingPicks, setOutgoingPicks] = useState<Record<string, boolean[]>>(
     () =>
       Object.fromEntries(
-        Object.keys(generation.outgoing.byTargetName).map((n) => [n, 0]),
+        Object.keys(generation.outgoing.byTargetName).map((n) => [
+          n,
+          tripletPicks(),
+        ]),
       ),
   );
-  const [incomingPicks, setIncomingPicks] = useState<Record<string, number>>(
+  const [incomingPicks, setIncomingPicks] = useState<Record<string, boolean[]>>(
     () =>
       Object.fromEntries(
-        Object.keys(generation.incoming.bySpeakerName).map((n) => [n, 0]),
+        Object.keys(generation.incoming.bySpeakerName).map((n) => [
+          n,
+          tripletPicks(),
+        ]),
       ),
   );
 
@@ -54,34 +70,36 @@ export function NewCharacterReviewModal({
       phrases[key] = triplet.filter((_, i) => picks[i]);
     }
 
-    const nicknameDefault =
-      generation.outgoing.nicknameDefault[defaultPick] ?? '';
-    const nicknames: Record<string, string> = {};
+    const nicknameDefaults = generation.outgoing.nicknameDefault.filter(
+      (_, i) => defaultPicks[i],
+    );
+    const nicknames: Record<string, string[]> = {};
     for (const [targetName, triplet] of Object.entries(
       generation.outgoing.byTargetName,
     )) {
       const id = nameToId.get(targetName);
       if (!id) continue;
-      const idx = outgoingPicks[targetName] ?? 0;
-      nicknames[id] = triplet[idx] ?? '';
+      const picks = outgoingPicks[targetName] ?? tripletPicks();
+      const selected = triplet.filter((_, i) => picks[i]);
+      if (selected.length) nicknames[id] = selected;
     }
 
     const char: Character = {
-      id: crypto.randomUUID(),
-      name,
+      ...createCharacter(name),
       phrases,
-      nicknameDefault,
+      nicknameDefaults,
       nicknames,
     };
 
-    const incomingBySpeakerId: Record<string, string> = {};
+    const incomingBySpeakerId: Record<string, string[]> = {};
     for (const [speakerName, triplet] of Object.entries(
       generation.incoming.bySpeakerName,
     )) {
       const id = nameToId.get(speakerName);
       if (!id) continue;
-      const idx = incomingPicks[speakerName] ?? 0;
-      incomingBySpeakerId[id] = triplet[idx] ?? '';
+      const picks = incomingPicks[speakerName] ?? tripletPicks();
+      const selected = triplet.filter((_, i) => picks[i]);
+      if (selected.length) incomingBySpeakerId[id] = selected;
     }
 
     onConfirm({ character: char, incomingBySpeakerId });
@@ -104,8 +122,8 @@ export function NewCharacterReviewModal({
       }
     >
       <p className="modal-intro">
-        Pick options to apply. All three phrase lines are selected by default
-        per type.
+        Check the lines to add. You can keep all three per row or pick only the
+        ones you like — multiple nicknames per person are supported.
       </p>
       <section className="review-section">
         <h3>Dialogue phrases</h3>
@@ -127,23 +145,31 @@ export function NewCharacterReviewModal({
       </section>
       <section className="review-section">
         <h3>Calls others</h3>
-        <OptionTriplet
-          label="Default (new islanders)"
-          name="out-default"
+        <OptionTripletMulti
+          label="Defaults (new islanders)"
           options={generation.outgoing.nicknameDefault}
-          selectedIndex={defaultPick}
-          onSelect={setDefaultPick}
+          selectedIndices={defaultPicks}
+          onToggle={(i) =>
+            setDefaultPicks((prev) => {
+              const next = [...prev];
+              next[i] = !next[i];
+              return next;
+            })
+          }
         />
         {Object.entries(generation.outgoing.byTargetName).map(
           ([targetName, triplet]) => (
-            <OptionTriplet
+            <OptionTripletMulti
               key={targetName}
               label={targetName}
-              name={`out-${targetName}`}
               options={triplet}
-              selectedIndex={outgoingPicks[targetName] ?? 0}
-              onSelect={(i) =>
-                setOutgoingPicks((p) => ({ ...p, [targetName]: i }))
+              selectedIndices={outgoingPicks[targetName] ?? tripletPicks()}
+              onToggle={(i) =>
+                setOutgoingPicks((p) => {
+                  const cur = [...(p[targetName] ?? tripletPicks())];
+                  cur[i] = !cur[i];
+                  return { ...p, [targetName]: cur };
+                })
               }
             />
           ),
@@ -153,14 +179,17 @@ export function NewCharacterReviewModal({
         <h3>How others call {name}</h3>
         {Object.entries(generation.incoming.bySpeakerName).map(
           ([speakerName, triplet]) => (
-            <OptionTriplet
+            <OptionTripletMulti
               key={speakerName}
               label={speakerName}
-              name={`in-${speakerName}`}
               options={triplet}
-              selectedIndex={incomingPicks[speakerName] ?? 0}
-              onSelect={(i) =>
-                setIncomingPicks((p) => ({ ...p, [speakerName]: i }))
+              selectedIndices={incomingPicks[speakerName] ?? tripletPicks()}
+              onToggle={(i) =>
+                setIncomingPicks((p) => {
+                  const cur = [...(p[speakerName] ?? tripletPicks())];
+                  cur[i] = !cur[i];
+                  return { ...p, [speakerName]: cur };
+                })
               }
             />
           ),

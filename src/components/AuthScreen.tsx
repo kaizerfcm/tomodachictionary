@@ -1,22 +1,33 @@
 import { useState } from 'react';
+import { validateUsername } from '../lib/authUsername';
 
 export type AuthMode = 'signIn' | 'signUp';
+export type SignUpIslandChoice = 'local' | 'fresh';
 
 interface AuthScreenProps {
   mode: AuthMode;
   onBack: () => void;
-  onSubmit: (email: string, password: string) => Promise<void>;
-  migrateHint?: boolean;
+  onSubmit: (
+    mode: AuthMode,
+    username: string,
+    password: string,
+    islandChoice?: SignUpIslandChoice,
+  ) => Promise<void>;
+  hasLocalData?: boolean;
 }
 
 export function AuthScreen({
-  mode,
+  mode: initialMode,
   onBack,
   onSubmit,
-  migrateHint,
+  hasLocalData = false,
 }: AuthScreenProps) {
-  const [email, setEmail] = useState('');
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [islandChoice, setIslandChoice] = useState<SignUpIslandChoice>(
+    hasLocalData ? 'local' : 'fresh',
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,10 +35,21 @@ export function AuthScreen({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const slug = username.trim().toLowerCase();
+    const validation = validateUsername(slug);
+    if (validation) {
+      setError(validation);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(email.trim(), password);
+      await onSubmit(
+        mode,
+        slug,
+        password,
+        isSignUp ? islandChoice : undefined,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -42,23 +64,25 @@ export function AuthScreen({
           ← Back
         </button>
         <h1>{isSignUp ? 'Create account' : 'Sign in'}</h1>
-        {migrateHint && isSignUp && (
-          <p className="welcome-hint">
-            Your current local island will be uploaded to this account.
-          </p>
-        )}
+        <p className="welcome-hint">
+          Username and password only — no email. Pick a unique username (3–24
+          characters, letters, numbers, underscore).
+        </p>
         <form onSubmit={handleSubmit} className="auth-form">
-          <label className="config-label" htmlFor="auth-email">
-            Email
+          <label className="config-label" htmlFor="auth-username">
+            Username
           </label>
           <input
-            id="auth-email"
-            type="email"
+            id="auth-username"
+            type="text"
             className="config-input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             required
-            autoComplete="email"
+            autoComplete="username"
+            autoCapitalize="off"
+            spellCheck={false}
+            pattern="[a-zA-Z0-9_]{3,24}"
           />
           <label className="config-label" htmlFor="auth-password">
             Password
@@ -73,6 +97,35 @@ export function AuthScreen({
             minLength={6}
             autoComplete={isSignUp ? 'new-password' : 'current-password'}
           />
+
+          {isSignUp && (
+            <fieldset className="auth-island-choice">
+              <legend className="config-label">Start your cloud island with</legend>
+              <label className="option-choice">
+                <input
+                  type="radio"
+                  name="island-choice"
+                  checked={islandChoice === 'local'}
+                  onChange={() => setIslandChoice('local')}
+                  disabled={!hasLocalData}
+                />
+                <span>
+                  This device&apos;s current island
+                  {!hasLocalData && ' (none saved here)'}
+                </span>
+              </label>
+              <label className="option-choice">
+                <input
+                  type="radio"
+                  name="island-choice"
+                  checked={islandChoice === 'fresh'}
+                  onChange={() => setIslandChoice('fresh')}
+                />
+                <span>Empty island (fresh start)</span>
+              </label>
+            </fieldset>
+          )}
+
           {error && <p className="auth-error">{error}</p>}
           <button
             type="submit"
@@ -82,6 +135,38 @@ export function AuthScreen({
             {busy ? 'Please wait…' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
         </form>
+
+        <p className="auth-switch">
+          {isSignUp ? (
+            <>
+              Already have an account?{' '}
+              <button
+                type="button"
+                className="btn-link"
+                onClick={() => {
+                  setMode('signIn');
+                  setError(null);
+                }}
+              >
+                Sign in
+              </button>
+            </>
+          ) : (
+            <>
+              New here?{' '}
+              <button
+                type="button"
+                className="btn-link"
+                onClick={() => {
+                  setMode('signUp');
+                  setError(null);
+                }}
+              >
+                Create account
+              </button>
+            </>
+          )}
+        </p>
       </div>
     </div>
   );

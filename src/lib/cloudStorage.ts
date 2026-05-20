@@ -1,4 +1,5 @@
 import type { DictionaryData } from '../types';
+import { migrateCharacter } from '../types';
 import { getSupabase } from './supabase';
 
 const TABLE = 'island_data';
@@ -17,7 +18,10 @@ export async function loadIslandFromCloud(
   if (!data?.data) return null;
   const parsed = data.data as DictionaryData;
   if (parsed.version !== 1 || !Array.isArray(parsed.characters)) return null;
-  return parsed;
+  return {
+    ...parsed,
+    characters: parsed.characters.map((c) => migrateCharacter(c)),
+  };
 }
 
 export async function saveIslandToCloud(

@@ -2,7 +2,7 @@ import type { SyncStatus } from '../hooks/useDictionary';
 
 interface SyncBannerProps {
   mode: 'local' | 'cloud';
-  email?: string;
+  displayName?: string;
   syncStatus?: SyncStatus;
   syncError?: string | null;
   onCreateAccount: () => void;
@@ -13,7 +13,7 @@ interface SyncBannerProps {
 
 export function SyncBanner({
   mode,
-  email,
+  displayName,
   syncStatus,
   syncError,
   onCreateAccount,
@@ -21,7 +21,7 @@ export function SyncBanner({
   onSignOut,
   syncAvailable,
 }: SyncBannerProps) {
-  if (mode === 'cloud' && email) {
+  if (mode === 'cloud' && displayName) {
     let statusText = '';
     if (syncStatus === 'saving') statusText = 'Saving…';
     else if (syncStatus === 'saved') statusText = 'Saved';
@@ -30,7 +30,7 @@ export function SyncBanner({
     return (
       <div className="sync-banner sync-banner-cloud">
         <span className="sync-banner-text">
-          {email}
+          @{displayName}
           {statusText && (
             <span className={`sync-status sync-status-${syncStatus}`}>
               · {statusText}
@@ -51,15 +51,15 @@ export function SyncBanner({
     <div className="sync-banner sync-banner-local">
       <span className="sync-banner-text">Local only — not synced</span>
       <div className="sync-banner-actions">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onSignIn}>
-          Sign in
-        </button>
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className="btn btn-primary btn-sm"
           onClick={onCreateAccount}
         >
           Create account
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onSignIn}>
+          Sign in
         </button>
       </div>
     </div>

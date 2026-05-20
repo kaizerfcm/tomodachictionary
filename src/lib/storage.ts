@@ -1,14 +1,7 @@
 import type { Character, DictionaryData } from '../types';
+import { migrateCharacter } from '../types';
 
 const STORAGE_KEY = 'tomodachi-dictionary-v1';
-
-function migrateCharacter(c: Character): Character {
-  return {
-    ...c,
-    nicknameDefault: c.nicknameDefault ?? '',
-    nicknames: c.nicknames ?? {},
-  };
-}
 
 export function loadFromStorage(): DictionaryData | null {
   try {
@@ -18,7 +11,9 @@ export function loadFromStorage(): DictionaryData | null {
     if (data.version !== 1 || !Array.isArray(data.characters)) return null;
     return {
       ...data,
-      characters: data.characters.map(migrateCharacter),
+      characters: data.characters.map((c) =>
+        migrateCharacter(c as Character),
+      ),
     };
   } catch {
     return null;
@@ -26,7 +21,11 @@ export function loadFromStorage(): DictionaryData | null {
 }
 
 export function saveToStorage(data: DictionaryData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const normalized: DictionaryData = {
+    version: 1,
+    characters: data.characters.map((c) => migrateCharacter(c)),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
 }
 
 export function clearStorage(): void {

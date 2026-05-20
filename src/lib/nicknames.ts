@@ -1,4 +1,6 @@
+import { MAX_NICKNAME_OPTIONS } from '../constants';
 import type { Character } from '../types';
+import { migrateCharacter } from '../types';
 
 export interface NicknameSeedEntry {
   default_address: string;
@@ -7,31 +9,48 @@ export interface NicknameSeedEntry {
 
 export type NicknameSeed = Record<string, NicknameSeedEntry>;
 
-/** Resolved label this speaker uses for a target (specific → default → target name). */
+export function getTargetNicknames(
+  speaker: Character,
+  targetId: string,
+): string[] {
+  return speaker.nicknames[targetId] ?? [];
+}
+
+export function getAllNicknamesForSearch(
+  speaker: Character,
+  target: Character,
+): string[] {
+  const specific = getTargetNicknames(speaker, target.id);
+  const defaults = speaker.nicknameDefaults;
+  return [...specific, ...defaults, target.name];
+}
+
 export function getEffectiveNickname(
   speaker: Character,
   target: Character,
 ): string {
-  const specific = speaker.nicknames[target.id];
-  if (specific !== undefined && specific !== '') return specific;
-  if (speaker.nicknameDefault) return speaker.nicknameDefault;
+  const list = getTargetNicknames(speaker, target.id);
+  if (list.length) return list[0];
+  if (speaker.nicknameDefaults.length) return speaker.nicknameDefaults[0];
   return target.name;
 }
 
-/** Value shown in the per-target input (empty when using default or legal name). */
-export function getNicknameInputValue(
-  speaker: Character,
-  target: Character,
-): string {
-  return speaker.nicknames[target.id] ?? '';
+export function canAddNicknameOption(currentCount: number): boolean {
+  return currentCount < MAX_NICKNAME_OPTIONS;
 }
 
-export function getNicknamePlaceholder(
-  speaker: Character,
-  target: Character,
-): string {
-  if (speaker.nicknameDefault) return speaker.nicknameDefault;
-  return target.name;
+export function dedupeNicknames(list: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const t = raw.trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out.slice(0, MAX_NICKNAME_OPTIONS);
 }
 
 export function applyNicknameSeed(
@@ -41,22 +60,29 @@ export function applyNicknameSeed(
   const nameToId = new Map(characters.map((c) => [c.name, c.id]));
 
   return characters.map((char) => {
+    const base = migrateCharacter(char);
     const entry = seed[char.name];
-    if (!entry) {
-      return { ...char, nicknameDefault: char.nicknameDefault ?? '' };
-    }
+    if (!entry) return base;
 
-    const nicknames: Record<string, string> = {};
+    const nicknames: Record<string, string[]> = { ...base.nicknames };
     for (const [targetName, nick] of Object.entries(entry.specific_nicknames)) {
       const targetId = nameToId.get(targetName);
-      if (targetId && targetId !== char.id) {
-        nicknames[targetId] = nick;
+      if (targetId && targetId !== char.id && nick.trim()) {
+        nicknames[targetId] = dedupeNicknames([
+          ...(nicknames[targetId] ?? []),
+          nick.trim(),
+        ]);
       }
     }
 
     return {
-      ...char,
-      nicknameDefault: entry.default_address,
+      ...base,
+      nicknameDefaults: entry.default_address.trim()
+        ? dedupeNicknames([
+            ...base.nicknameDefaults,
+            entry.default_address.trim(),
+          ])
+        : base.nicknameDefaults,
       nicknames,
     };
   });

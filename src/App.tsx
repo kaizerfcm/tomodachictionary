@@ -16,6 +16,8 @@ import { loadIslandFromCloud, saveIslandToCloud } from './lib/cloudStorage';
 import { getSupabase } from './lib/supabase';
 import { loadFromStorage } from './lib/storage';
 import { usernameToEmail } from './lib/authUsername';
+import { detectAccountCountry } from './lib/detectCountry';
+import { ensureUserProfile } from './lib/userProfile';
 import './index.css';
 
 function App() {
@@ -70,6 +72,10 @@ function App() {
             'Account created. If sign-in fails, disable email confirmation in Supabase Auth settings, then try again.',
           );
         }
+        await ensureUserProfile(
+          data.session.user.id,
+          detectAccountCountry(),
+        );
         if (islandChoice === 'local') {
           await migrateLocalToCloud(data.session.user.id);
         } else {
@@ -85,6 +91,7 @@ function App() {
         });
         if (error) throw error;
         if (data.user) {
+          await ensureUserProfile(data.user.id, detectAccountCountry());
           const cloud = await loadIslandFromCloud(data.user.id);
           const local = loadFromStorage();
           if (

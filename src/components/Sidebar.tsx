@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Character } from '../types';
 import { getSidebarListOpen, setSidebarListOpen } from '../lib/uiPrefs';
 import { CharacterAvatar } from './CharacterAvatar';
@@ -8,12 +8,12 @@ interface SidebarProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onAdd: () => void;
-  onReset: () => void;
+  onExportJson: () => void;
+  onImportJson: (file: File) => void;
   onClearAll: () => void;
   onOpenConfig: () => void;
   onOpenTos: () => void;
   hasApiKey: boolean;
-  seedsAvailable: boolean;
 }
 
 export function Sidebar({
@@ -21,14 +21,15 @@ export function Sidebar({
   selectedId,
   onSelect,
   onAdd,
-  onReset,
+  onExportJson,
+  onImportJson,
   onClearAll,
   onOpenConfig,
   onOpenTos,
   hasApiKey,
-  seedsAvailable,
 }: SidebarProps) {
   const [listOpen, setListOpen] = useState(getSidebarListOpen);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const toggleList = () => {
     setListOpen((open) => {
@@ -36,16 +37,6 @@ export function Sidebar({
       setSidebarListOpen(next);
       return next;
     });
-  };
-
-  const handleReset = () => {
-    if (
-      window.confirm(
-        'Reset all data from seed files? This will overwrite your saved changes.',
-      )
-    ) {
-      onReset();
-    }
   };
 
   const handleClearAll = () => {
@@ -56,6 +47,12 @@ export function Sidebar({
     ) {
       onClearAll();
     }
+  };
+
+  const handleImportFile = (file: File | undefined) => {
+    if (!file) return;
+    onImportJson(file);
+    if (importRef.current) importRef.current.value = '';
   };
 
   return (
@@ -115,15 +112,26 @@ export function Sidebar({
             Terms
           </button>
         </div>
-        {seedsAvailable ? (
-          <button type="button" className="btn btn-ghost" onClick={handleReset}>
-            Reset from seed
-          </button>
-        ) : (
-          <button type="button" className="btn btn-ghost" onClick={handleClearAll}>
-            Clear all data
-          </button>
-        )}
+        <button type="button" className="btn btn-ghost" onClick={onExportJson}>
+          Export JSON
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => importRef.current?.click()}
+        >
+          Import JSON
+        </button>
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          onChange={(e) => handleImportFile(e.target.files?.[0])}
+        />
+        <button type="button" className="btn btn-ghost" onClick={handleClearAll}>
+          Clear all data
+        </button>
       </footer>
     </aside>
   );

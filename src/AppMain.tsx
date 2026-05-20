@@ -11,11 +11,14 @@ import {
 import { sortCharacters } from './lib/sortCharacters';
 import { useDictionary } from './hooks/useDictionary';
 import { useSettings } from './hooks/useSettings';
+import { useUserProfile } from './hooks/useUserProfile';
 import { Sidebar } from './components/Sidebar';
 import { CharacterEditor } from './components/CharacterEditor';
 import { CharacterGrid } from './components/CharacterGrid';
 import { ConfigPage } from './components/ConfigPage';
 import { TosPage } from './components/TosPage';
+import { RemoveAdsPage } from './components/RemoveAdsPage';
+import { AdBanner } from './components/AdBanner';
 import { SyncBanner } from './components/SyncBanner';
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
@@ -36,9 +39,10 @@ import type { FullCharacterGeneration } from './lib/gemini/types';
 import type { PhraseType } from './types';
 import type { AuthMode } from './components/AuthScreen';
 import { emailToDisplayUsername } from './lib/authUsername';
+import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
 
-type View = 'main' | 'config' | 'tos';
+type View = 'main' | 'config' | 'tos' | 'removeAds';
 
 interface AppMainProps {
   storageMode: 'local' | 'cloud';
@@ -58,6 +62,7 @@ export function AppMain({
   onOpenAuth,
 }: AppMainProps) {
   const { apiKey, setApiKey, hasApiKey } = useSettings();
+  const { adsRemoved, isBrazil, setAdsRemoved } = useUserProfile(userId);
   const [view, setView] = useState<View>('main');
   const [showNewCharModal, setShowNewCharModal] = useState(false);
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
@@ -86,6 +91,7 @@ export function AppMain({
     syncError,
     addCharacter,
     addCharacterFull,
+    applyCharacters,
     removeCharacter,
     updateCharacterName,
     updateCharacterAvatar,
@@ -98,9 +104,7 @@ export function AppMain({
     updateNicknameDefaultAt,
     addNicknameDefault,
     removeNicknameDefault,
-    resetFromSeed,
     clearAllData,
-    seedsAvailable,
   } = useDictionary({ storageMode, userId });
 
   const displayUser = emailToDisplayUsername(userEmail);
@@ -109,6 +113,9 @@ export function AppMain({
     () => sortCharacters(characters, 'name'),
     [characters],
   );
+
+  const showGrid = !selected;
+  const showAdBanner = showGrid && !adsRemoved;
 
   const handleGridSortChange = (sort: GridSort) => {
     setGridSortState(sort);
@@ -123,6 +130,49 @@ export function AppMain({
   const handleIncomingNickOpenChange = (open: boolean) => {
     setIncomingNickOpenState(open);
     setIncomingNickOpen(open);
+  };
+
+  const handleExportJson = () => {
+    downloadIslandJson({ version: 1, characters });
+  };
+
+  const handleImportJson = async (file: File) => {
+    try {
+      const text = await file.text();
+      const data = parseIslandJson(text);
+      const replace = window.confirm(
+        `Import ${data.characters.length} character(s)? OK replaces your island; Cancel merges by name (keeps existing IDs where names match).`,
+      );
+      if (replace) {
+        applyCharacters(data.characters);
+        return;
+      }
+      const byName = new Map(characters.map((c) => [c.name.toLowerCase(), c]));
+      const merged = [...characters];
+      for (const imported of data.characters) {
+        const key = imported.name.toLowerCase();
+        const existing = byName.get(key);
+        if (existing) {
+          const idx = merged.findIndex((c) => c.id === existing.id);
+          if (idx >= 0) merged[idx] = { ...imported, id: existing.id };
+        } else {
+          merged.push(imported);
+        }
+      }
+      applyCharacters(merged);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Import failed');
+    }
+  };
+
+  const handleConfirmPaid = async () => {
+    await setAdsRemoved(true);
+    setView('main');
+  };
+
+  const handleRemoveFree = async () => {
+    await setAdsRemoved(true);
+    setView('main');
   };
 
   const runAi = useCallback(
@@ -275,6 +325,18 @@ export function AppMain({
     return <TosPage onBack={() => setView('main')} />;
   }
 
+  if (view === 'removeAds') {
+    return (
+      <RemoveAdsPage
+        isBrazil={isBrazil}
+        hasAccount={Boolean(userId)}
+        onBack={() => setView('main')}
+        onConfirmPaid={handleConfirmPaid}
+        onRemoveFree={handleRemoveFree}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -282,12 +344,12 @@ export function AppMain({
         selectedId={selectedId}
         onSelect={setSelectedId}
         onAdd={() => setShowNewCharModal(true)}
-        onReset={resetFromSeed}
+        onExportJson={handleExportJson}
+        onImportJson={handleImportJson}
         onClearAll={clearAllData}
         onOpenConfig={() => setView('config')}
         onOpenTos={() => setView('tos')}
         hasApiKey={hasApiKey}
-        seedsAvailable={seedsAvailable}
       />
       <div className="main-area">
         <SyncBanner
@@ -300,71 +362,76 @@ export function AppMain({
           onSignIn={() => onOpenAuth('signIn')}
           onSignOut={onSignOut}
         />
-        {selected ? (
-          <CharacterEditor
-            character={selected}
-            allCharacters={characters}
-            onBack={() => setSelectedId(null)}
-            onNameChange={(name) => updateCharacterName(selected.id, name)}
-            onAvatarChange={(avatar) =>
-              updateCharacterAvatar(selected.id, avatar)
-            }
-            onDelete={handleDeleteCharacter}
-            onUpdatePhrase={(type, index, text) =>
-              updatePhrase(selected.id, type, index, text)
-            }
-            onAddPhrase={(type, text) => addPhrase(selected.id, type, text)}
-            onRemovePhrase={(type, index) =>
-              removePhrase(selected.id, type, index)
-            }
-            hasApiKey={hasApiKey}
-            generatingKey={generatingKey}
-            genError={genError}
-            onUpdateNicknameDefaultAt={(index, value) =>
-              updateNicknameDefaultAt(selected.id, index, value)
-            }
-            onAddNicknameDefault={(value) =>
-              addNicknameDefault(selected.id, value)
-            }
-            onRemoveNicknameDefault={(index) =>
-              removeNicknameDefault(selected.id, index)
-            }
-            onUpdateNicknameAt={(targetId, index, value) =>
-              updateNicknameAt(selected.id, targetId, index, value)
-            }
-            onAddNickname={(targetId, value) =>
-              addNicknameForTarget(selected.id, targetId, value)
-            }
-            onRemoveNickname={(targetId, index) =>
-              removeNicknameAt(selected.id, targetId, index)
-            }
-            onUpdateIncomingAt={(speakerId, index, value) =>
-              updateNicknameAt(speakerId, selected.id, index, value)
-            }
-            onAddIncoming={(speakerId, value) =>
-              addNicknameForTarget(speakerId, selected.id, value)
-            }
-            onRemoveIncoming={(speakerId, index) =>
-              removeNicknameAt(speakerId, selected.id, index)
-            }
-            onGeneratePhrase={handleGeneratePhrase}
-            onGenerateDefaultNickname={handleGenerateDefaultNickname}
-            onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
-            onGenerateIncomingNickname={handleGenerateIncomingNickname}
-            onOpenCharacter={setSelectedId}
-            outgoingNickOpen={outgoingNickOpen}
-            incomingNickOpen={incomingNickOpen}
-            onOutgoingNickOpenChange={handleOutgoingNickOpenChange}
-            onIncomingNickOpenChange={handleIncomingNickOpenChange}
-          />
-        ) : (
-          <CharacterGrid
-            characters={characters}
-            sort={gridSort}
-            onSortChange={handleGridSortChange}
-            onSelect={setSelectedId}
-            onAdd={() => setShowNewCharModal(true)}
-          />
+        <div className="main-area-body">
+          {selected ? (
+            <CharacterEditor
+              character={selected}
+              allCharacters={characters}
+              onBack={() => setSelectedId(null)}
+              onNameChange={(name) => updateCharacterName(selected.id, name)}
+              onAvatarChange={(avatar) =>
+                updateCharacterAvatar(selected.id, avatar)
+              }
+              onDelete={handleDeleteCharacter}
+              onUpdatePhrase={(type, index, text) =>
+                updatePhrase(selected.id, type, index, text)
+              }
+              onAddPhrase={(type, text) => addPhrase(selected.id, type, text)}
+              onRemovePhrase={(type, index) =>
+                removePhrase(selected.id, type, index)
+              }
+              hasApiKey={hasApiKey}
+              generatingKey={generatingKey}
+              genError={genError}
+              onUpdateNicknameDefaultAt={(index, value) =>
+                updateNicknameDefaultAt(selected.id, index, value)
+              }
+              onAddNicknameDefault={(value) =>
+                addNicknameDefault(selected.id, value)
+              }
+              onRemoveNicknameDefault={(index) =>
+                removeNicknameDefault(selected.id, index)
+              }
+              onUpdateNicknameAt={(targetId, index, value) =>
+                updateNicknameAt(selected.id, targetId, index, value)
+              }
+              onAddNickname={(targetId, value) =>
+                addNicknameForTarget(selected.id, targetId, value)
+              }
+              onRemoveNickname={(targetId, index) =>
+                removeNicknameAt(selected.id, targetId, index)
+              }
+              onUpdateIncomingAt={(speakerId, index, value) =>
+                updateNicknameAt(speakerId, selected.id, index, value)
+              }
+              onAddIncoming={(speakerId, value) =>
+                addNicknameForTarget(speakerId, selected.id, value)
+              }
+              onRemoveIncoming={(speakerId, index) =>
+                removeNicknameAt(speakerId, selected.id, index)
+              }
+              onGeneratePhrase={handleGeneratePhrase}
+              onGenerateDefaultNickname={handleGenerateDefaultNickname}
+              onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
+              onGenerateIncomingNickname={handleGenerateIncomingNickname}
+              onOpenCharacter={setSelectedId}
+              outgoingNickOpen={outgoingNickOpen}
+              incomingNickOpen={incomingNickOpen}
+              onOutgoingNickOpenChange={handleOutgoingNickOpenChange}
+              onIncomingNickOpenChange={handleIncomingNickOpenChange}
+            />
+          ) : (
+            <CharacterGrid
+              characters={characters}
+              sort={gridSort}
+              onSortChange={handleGridSortChange}
+              onSelect={setSelectedId}
+              onAdd={() => setShowNewCharModal(true)}
+            />
+          )}
+        </div>
+        {showAdBanner && (
+          <AdBanner onRemoveAds={() => setView('removeAds')} />
         )}
       </div>
 

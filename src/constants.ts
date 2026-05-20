@@ -7,6 +7,9 @@ export const MAX_NICKNAME_OPTIONS = 10;
 /** Gemini generates one line per AI button press. */
 export const AI_BATCH_SIZE = 1;
 
+/** Max character name length (matches auth username cap). */
+export const MAX_CHARACTER_NAME_LENGTH = 24;
+
 /** Avatar stored as JPEG data URL (px). */
 export const AVATAR_MAX_PX = 48;
 

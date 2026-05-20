@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { MAX_CHARACTER_NAME_LENGTH } from '../constants';
 import type { Character } from '../types';
 import type { GridSort } from '../lib/uiPrefs';
 import { sortCharacters } from '../lib/sortCharacters';
@@ -52,7 +53,7 @@ export function CharacterGrid({
       ) : (
         <ul className="character-grid">
           {sorted.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="character-grid-item">
               <button
                 type="button"
                 className="character-grid-card"
@@ -63,12 +64,20 @@ export function CharacterGrid({
                   size="grid"
                   className="avatar-round"
                 />
-                <span className="character-grid-name">{c.name}</span>
+                <span
+                  className="character-grid-name"
+                  title={c.name}
+                >
+                  {c.name}
+                </span>
               </button>
             </li>
           ))}
         </ul>
       )}
+      <span className="sr-only" aria-hidden="true">
+        {MAX_CHARACTER_NAME_LENGTH}
+      </span>
     </div>
   );
 }

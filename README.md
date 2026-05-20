@@ -19,7 +19,7 @@ npm test
 
 | Feature | What you need |
 |--------|----------------|
-| Cloud sync | `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` / Vercel; run `supabase/schema.sql` |
+| Cloud sync | `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` / Vercel; run `supabase/schema.sql` and `supabase/user_profiles.sql` |
 | AI generate | Gemini API key in app **Configuration** (per device) |
 | Seed data | Copy `public/*.example` → `public/seed.md` and `nicknames-seed.json` (gitignored) |
 

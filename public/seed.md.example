@@ -1,0 +1,49 @@
+# Tomodachi Life - Island Dialogue Templates (example)
+
+Copy this file to `public/seed.md` locally (gitignored) to bootstrap dialogue.
+
+### **Character Name**
+
+**Catchphrases:**
+
+* "Example catchphrase one"
+* "Example catchphrase two"
+* "Example catchphrase three"
+
+**Starting a sentence:**
+
+* "Hey,"
+* "Listen,"
+
+**Ending a sentence:**
+
+* ", you know."
+* "...yeah."
+
+**Before eating:**
+
+* "Time to eat!"
+
+**Shout at the sea:**
+
+* "HELLO OCEAN!"
+
+**When happy:**
+
+* "What a great day!"
+
+**When sad:**
+
+* "I'm feeling down."
+
+**When angry:**
+
+* "I'M SO MAD!"
+
+**While sleeping:**
+
+* "Zzz..."
+
+**Greeting:**
+
+* "Hi there!"

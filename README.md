@@ -23,4 +23,4 @@ npm test
 | AI generate | Gemini API key in app **Configuration** (per device) |
 | Seed data | Copy `public/*.example` → `public/seed.md` and `nicknames-seed.json` (gitignored) |
 
-Deploy: Vite static build to Vercel or Cloudflare Pages (`dist/`). Disable Supabase email confirmation for username-only sign-up.
+Deploy: Vite static build to Vercel or Cloudflare Pages (`dist/`). Supabase: enable Email auth, disable Confirm email. Payments: [docs/MONETIZATION.md](docs/MONETIZATION.md).

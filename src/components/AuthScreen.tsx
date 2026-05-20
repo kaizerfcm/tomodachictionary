@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { validateUsername } from '../lib/authUsername';
+import { validateEmail } from '../lib/authEmail';
 
 export type AuthMode = 'signIn' | 'signUp';
 export type SignUpIslandChoice = 'local' | 'fresh';
@@ -9,7 +9,7 @@ interface AuthScreenProps {
   onBack: () => void;
   onSubmit: (
     mode: AuthMode,
-    username: string,
+    email: string,
     password: string,
     islandChoice?: SignUpIslandChoice,
   ) => Promise<void>;
@@ -23,7 +23,7 @@ export function AuthScreen({
   hasLocalData = false,
 }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [islandChoice, setIslandChoice] = useState<SignUpIslandChoice>(
     hasLocalData ? 'local' : 'fresh',
@@ -35,8 +35,7 @@ export function AuthScreen({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const slug = username.trim().toLowerCase();
-    const validation = validateUsername(slug);
+    const validation = validateEmail(email);
     if (validation) {
       setError(validation);
       return;
@@ -46,7 +45,7 @@ export function AuthScreen({
     try {
       await onSubmit(
         mode,
-        slug,
+        email.trim().toLowerCase(),
         password,
         isSignUp ? islandChoice : undefined,
       );
@@ -64,25 +63,24 @@ export function AuthScreen({
           ← Back
         </button>
         <h1>{isSignUp ? 'Create account' : 'Sign in'}</h1>
-        <p className="welcome-hint">
-          Username and password only — no email. Pick a unique username (3–24
-          characters, letters, numbers, underscore).
-        </p>
+        {isSignUp && (
+          <p className="welcome-hint">
+            Email and password. No confirmation email — you can sign in right away
+            after creating an account (with Confirm email turned off in Supabase).
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="auth-form">
-          <label className="config-label" htmlFor="auth-username">
-            Username
+          <label className="config-label" htmlFor="auth-email">
+            Email
           </label>
           <input
-            id="auth-username"
-            type="text"
+            id="auth-email"
+            type="email"
             className="config-input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
-            autoComplete="username"
-            autoCapitalize="off"
-            spellCheck={false}
-            pattern="[a-zA-Z0-9_]{3,24}"
+            autoComplete="email"
           />
           <label className="config-label" htmlFor="auth-password">
             Password

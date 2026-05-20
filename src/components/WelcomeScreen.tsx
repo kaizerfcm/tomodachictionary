@@ -28,7 +28,7 @@ export function WelcomeScreen({
         </button>
         <p className="welcome-hint">
           Data stays in this browser only. Create a free account anytime to sync
-          across devices (username + password, no email).
+          across devices (email + password).
         </p>
 
         {syncAvailable ? (

@@ -15,7 +15,6 @@ import {
 import { loadIslandFromCloud, saveIslandToCloud } from './lib/cloudStorage';
 import { getSupabase } from './lib/supabase';
 import { loadFromStorage } from './lib/storage';
-import { usernameToEmail } from './lib/authUsername';
 import { detectAccountCountry } from './lib/detectCountry';
 import { ensureUserProfile } from './lib/userProfile';
 import './index.css';
@@ -57,19 +56,18 @@ function App() {
   const handleAuthSubmit = useCallback(
     async (
       mode: AuthMode,
-      username: string,
+      email: string,
       password: string,
       islandChoice?: SignUpIslandChoice,
     ) => {
       const supabase = getSupabase();
-      const email = usernameToEmail(username);
 
       if (mode === 'signUp') {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session?.user) {
           throw new Error(
-            'Account created. If sign-in fails, disable email confirmation in Supabase Auth settings, then try again.',
+            'Account created but not signed in. In Supabase: Auth → Email → turn OFF “Confirm email”, then sign in.',
           );
         }
         await ensureUserProfile(

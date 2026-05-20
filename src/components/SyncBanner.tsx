@@ -30,7 +30,7 @@ export function SyncBanner({
     return (
       <div className="sync-banner sync-banner-cloud">
         <span className="sync-banner-text">
-          @{displayName}
+          {displayName}
           {statusText && (
             <span className={`sync-status sync-status-${syncStatus}`}>
               · {statusText}

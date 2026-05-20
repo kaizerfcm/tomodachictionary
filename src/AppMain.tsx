@@ -38,7 +38,8 @@ import {
 import type { FullCharacterGeneration } from './lib/gemini/types';
 import type { PhraseType } from './types';
 import type { AuthMode } from './components/AuthScreen';
-import { emailToDisplayUsername } from './lib/authUsername';
+import { formatAccountLabel } from './lib/authEmail';
+import { getPaymentConfig } from './lib/paymentConfig';
 import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
 
@@ -107,7 +108,8 @@ export function AppMain({
     clearAllData,
   } = useDictionary({ storageMode, userId });
 
-  const displayUser = emailToDisplayUsername(userEmail);
+  const displayUser = formatAccountLabel(userEmail);
+  const payment = getPaymentConfig(isBrazil);
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
@@ -328,7 +330,7 @@ export function AppMain({
   if (view === 'removeAds') {
     return (
       <RemoveAdsPage
-        isBrazil={isBrazil}
+        payment={payment}
         hasAccount={Boolean(userId)}
         onBack={() => setView('main')}
         onConfirmPaid={handleConfirmPaid}
@@ -431,7 +433,11 @@ export function AppMain({
           )}
         </div>
         {showAdBanner && (
-          <AdBanner onRemoveAds={() => setView('removeAds')} />
+          <AdBanner
+            payment={payment}
+            onConfirmPaid={handleConfirmPaid}
+            onMoreOptions={() => setView('removeAds')}
+          />
         )}
       </div>
 

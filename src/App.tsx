@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { useAuth } from './hooks/useAuth';
 import { AppMain } from './AppMain';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -120,9 +121,12 @@ function App() {
 
   if (auth.loading) {
     return (
-      <div className="app-loading">
-        <p>Loading…</p>
-      </div>
+      <>
+        <div className="app-loading">
+          <p>Loading…</p>
+        </div>
+        <Analytics />
+      </>
     );
   }
 
@@ -130,35 +134,44 @@ function App() {
 
   if (!inApp && !authView) {
     return (
-      <WelcomeScreen
-        syncAvailable={auth.configured}
-        onContinueLocal={handleContinueLocal}
-        onSignIn={() => handleOpenAuth('signIn')}
-        onSignUp={() => handleOpenAuth('signUp')}
-      />
+      <>
+        <WelcomeScreen
+          syncAvailable={auth.configured}
+          onContinueLocal={handleContinueLocal}
+          onSignIn={() => handleOpenAuth('signIn')}
+          onSignUp={() => handleOpenAuth('signUp')}
+        />
+        <Analytics />
+      </>
     );
   }
 
   if (authView && auth.configured) {
     return (
-      <AuthScreen
-        mode={authView}
-        hasLocalData={hasLocalData}
-        onBack={() => setAuthView(null)}
-        onSubmit={handleAuthSubmit}
-      />
+      <>
+        <AuthScreen
+          mode={authView}
+          hasLocalData={hasLocalData}
+          onBack={() => setAuthView(null)}
+          onSubmit={handleAuthSubmit}
+        />
+        <Analytics />
+      </>
     );
   }
 
   return (
-    <AppMain
-      storageMode={auth.user ? 'cloud' : 'local'}
-      userId={auth.user?.id}
-      userEmail={auth.user?.email}
-      syncAvailable={auth.configured}
-      onSignOut={handleSignOut}
-      onOpenAuth={handleOpenAuth}
-    />
+    <>
+      <AppMain
+        storageMode={auth.user ? 'cloud' : 'local'}
+        userId={auth.user?.id}
+        userEmail={auth.user?.email}
+        syncAvailable={auth.configured}
+        onSignOut={handleSignOut}
+        onOpenAuth={handleOpenAuth}
+      />
+      <Analytics />
+    </>
   );
 }
 

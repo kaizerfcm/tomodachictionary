@@ -25,7 +25,17 @@ export function saveToStorage(data: DictionaryData): void {
     version: 1,
     characters: data.characters.map((c) => migrateCharacter(c)),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+  const raw = JSON.stringify(normalized);
+  try {
+    localStorage.setItem(STORAGE_KEY, raw);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      throw new Error(
+        'Storage is full (try removing character photos or exporting then clearing data).',
+      );
+    }
+    throw e;
+  }
 }
 
 export function clearStorage(): void {

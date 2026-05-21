@@ -17,26 +17,25 @@ export function SyncBanner({
   onSignIn,
   syncAvailable,
 }: SyncBannerProps) {
-  if (mode === 'cloud') {
-    const showStatus =
-      syncStatus === 'saving' ||
-      syncStatus === 'error' ||
-      Boolean(syncError);
-
-    if (!showStatus) return null;
-
-    let statusText = 'Sync error';
-    if (syncStatus === 'saving') statusText = 'Saving to cloud…';
-    else if (syncStatus === 'error') statusText = 'Could not save';
-
+  if (syncError) {
     return (
       <div className="sync-banner sync-banner-cloud">
-        <span className={`sync-banner-text sync-status-${syncStatus}`}>
-          {statusText}
-        </span>
-        {syncError && <p className="sync-banner-error">{syncError}</p>}
+        <span className="sync-banner-text sync-status-error">{syncError}</span>
       </div>
     );
+  }
+
+  if (mode === 'cloud') {
+    if (syncStatus === 'saving') {
+      return (
+        <div className="sync-banner sync-banner-cloud">
+          <span className="sync-banner-text sync-status-saving">
+            Saving to cloud…
+          </span>
+        </div>
+      );
+    }
+    return null;
   }
 
   if (!syncAvailable) return null;

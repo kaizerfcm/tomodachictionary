@@ -15,17 +15,18 @@ import {
 import { backfillCreatedAt } from '../lib/characterDates';
 import { migrateCharacter } from '../types';
 import {
-  loadIslandFromCloud,
-  saveIslandToCloud,
-} from '../lib/cloudStorage';
+  loadIslandData,
+  saveIslandLocallySafe,
+  saveIslandToCloudSafe,
+} from '../lib/islandPersistence';
 import {
   areSeedsAvailable,
   clearStorage,
   fetchNicknameSeed,
   fetchSeedMarkdown,
-  loadFromStorage,
   saveToStorage,
 } from '../lib/storage';
+import { saveIslandToCloud } from '../lib/cloudStorage';
 
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -46,31 +47,80 @@ export function useDictionary({
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingData = useRef<DictionaryData | null>(null);
+  const storageModeRef = useRef(storageMode);
+  const userIdRef = useRef(userId);
+  storageModeRef.current = storageMode;
+  userIdRef.current = userId;
+
+  const flushPersist = useCallback(async (data: DictionaryData) => {
+    const localErr = await saveIslandLocallySafe(data);
+    if (localErr) {
+      setSyncStatus('error');
+      setSyncError(localErr);
+      return;
+    }
+
+    if (storageModeRef.current === 'cloud' && userIdRef.current) {
+      setSyncStatus('saving');
+      setSyncError(null);
+      const cloudErr = await saveIslandToCloudSafe(userIdRef.current, data);
+      if (cloudErr) {
+        setSyncStatus('error');
+        setSyncError(cloudErr);
+        return;
+      }
+      setSyncStatus('saved');
+    } else {
+      setSyncError(null);
+      setSyncStatus('idle');
+    }
+  }, []);
 
   const persist = useCallback(
     (next: Character[]) => {
       const data: DictionaryData = { version: 1, characters: next };
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(async () => {
-        if (storageMode === 'cloud' && userId) {
-          setSyncStatus('saving');
-          setSyncError(null);
-          try {
-            await saveIslandToCloud(userId, data);
-            setSyncStatus('saved');
-          } catch (e) {
-            setSyncStatus('error');
-            setSyncError(
-              e instanceof Error ? e.message : 'Failed to sync to cloud',
-            );
-          }
-        } else {
-          saveToStorage(data);
+      pendingData.current = data;
+
+      void (async () => {
+        const localErr = await saveIslandLocallySafe(data);
+        if (localErr) {
+          setSyncStatus('error');
+          setSyncError(localErr);
         }
-      }, 300);
+      })();
+
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        saveTimer.current = null;
+        void flushPersist(data);
+      }, 400);
     },
-    [storageMode, userId],
+    [flushPersist],
   );
+
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      if (pendingData.current) {
+        try {
+          saveToStorage(pendingData.current);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      if (pendingData.current) {
+        void flushPersist(pendingData.current);
+      }
+    };
+  }, [flushPersist]);
 
   const updateCharacters = useCallback(
     (updater: (prev: Character[]) => Character[]) => {
@@ -139,50 +189,43 @@ export function useDictionary({
     (async () => {
       try {
         setLoading(true);
+        setError(null);
         const seeds = await areSeedsAvailable();
         if (!cancelled) setSeedsAvailable(seeds);
 
-        if (storageMode === 'cloud' && userId) {
-          const cloud = await loadIslandFromCloud(userId);
-          if (cloud && cloud.characters.length > 0) {
-            if (!cancelled) {
-              setCharacters(backfillCreatedAt(cloud.characters));
-              setSelectedId(null);
-            }
-          } else if (seeds) {
-            await loadFromSeed();
-            if (!cancelled) setSyncStatus('saved');
-          } else if (!cancelled) {
-            setCharacters([]);
-            setSelectedId(null);
-          }
-        } else {
-          const stored = loadFromStorage();
-          if (stored && stored.characters.length > 0) {
-            let chars = stored.characters;
-            const hasNicknameData = chars.some(
-              (c) =>
-                (c.nicknameDefaults?.length ?? 0) > 0 ||
-                Object.keys(c.nicknames).length > 0,
-            );
-            if (!hasNicknameData && seeds) {
-              const nicknamesRaw = await fetchNicknameSeed();
-              if (nicknamesRaw) {
-                const nicknameSeed = JSON.parse(nicknamesRaw) as NicknameSeed;
-                chars = applyNicknameSeed(chars, nicknameSeed);
-                saveToStorage({ version: 1, characters: chars });
+        const loaded = await loadIslandData(storageMode, userId);
+        if (loaded && loaded.characters.length > 0) {
+          let chars = loaded.characters;
+          const hasNicknameData = chars.some(
+            (c) =>
+              (c.nicknameDefaults?.length ?? 0) > 0 ||
+              Object.keys(c.nicknames).length > 0,
+          );
+          if (!hasNicknameData && seeds) {
+            const nicknamesRaw = await fetchNicknameSeed();
+            if (nicknamesRaw) {
+              const nicknameSeed = JSON.parse(nicknamesRaw) as NicknameSeed;
+              chars = applyNicknameSeed(chars, nicknameSeed);
+              pendingData.current = { version: 1, characters: chars };
+              await saveIslandLocallySafe({ version: 1, characters: chars });
+              if (storageMode === 'cloud' && userId) {
+                await saveIslandToCloudSafe(userId, { version: 1, characters: chars });
               }
             }
-            if (!cancelled) {
-              setCharacters(backfillCreatedAt(chars));
-              setSelectedId(null);
-            }
-          } else if (seeds) {
-            await loadFromSeed();
-          } else if (!cancelled) {
-            setCharacters([]);
-            setSelectedId(null);
           }
+          if (!cancelled) {
+            setCharacters(backfillCreatedAt(chars));
+            setSelectedId(null);
+            if (storageMode === 'cloud' && userId) setSyncStatus('saved');
+          }
+        } else if (seeds) {
+          await loadFromSeed();
+          if (!cancelled && storageMode === 'cloud' && userId) {
+            setSyncStatus('saved');
+          }
+        } else if (!cancelled) {
+          setCharacters([]);
+          setSelectedId(null);
         }
       } catch (e) {
         if (!cancelled) {
@@ -195,7 +238,8 @@ export function useDictionary({
     return () => {
       cancelled = true;
     };
-  }, [storageMode, userId, loadFromSeed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per storage target; loadFromSeed would retrigger reloads
+  }, [storageMode, userId]);
 
   const selected =
     characters.find((c) => c.id === selectedId) ?? null;

@@ -29,10 +29,14 @@ export async function saveIslandToCloud(
   island: DictionaryData,
 ): Promise<void> {
   const supabase = getSupabase();
+  const normalized: DictionaryData = {
+    version: 1,
+    characters: island.characters.map((c) => migrateCharacter(c)),
+  };
   const { error } = await supabase.from(TABLE).upsert(
     {
       user_id: userId,
-      data: island,
+      data: normalized,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' },

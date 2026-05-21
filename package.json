@@ -6,12 +6,18 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc -b && vitest run && vite build",
+    "build:android": "tsc -b && vitest run && vite build --mode android",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "cap:sync": "npm run build:android && npx cap sync android",
+    "cap:open": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.2",
+    "@capacitor/app": "^7.0.1",
+    "@capacitor/core": "^7.4.2",
     "@supabase/supabase-js": "^2.106.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
@@ -30,6 +36,7 @@
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
     "vitest": "^3.2.4",
-    "jsdom": "^26.1.0"
+    "jsdom": "^26.1.0",
+    "@capacitor/cli": "^7.4.2"
   }
 }

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { APP_NAME } from '../constants';
 import type { Character } from '../types';
 import { getSidebarListOpen, setSidebarListOpen } from '../lib/uiPrefs';
 import { CharacterAvatar } from './CharacterAvatar';
@@ -58,7 +59,7 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <header className="sidebar-header">
-        <h1 className="app-title">Tomodachi Dictionary</h1>
+        <h1 className="app-title">{APP_NAME}</h1>
         <button type="button" className="btn btn-primary btn-sm" onClick={onAdd}>
           + Add character
         </button>

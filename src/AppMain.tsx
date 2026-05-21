@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   getGridSort,
   getIncomingNickOpen,
@@ -63,7 +63,8 @@ export function AppMain({
   onOpenAuth,
 }: AppMainProps) {
   const { apiKey, setApiKey, hasApiKey } = useSettings();
-  const { adsRemoved, isBrazil, setAdsRemoved } = useUserProfile(userId);
+  const { adsRemoved, setAdsRemoved, refreshProfile, confirmPlayPurchase } =
+    useUserProfile(userId);
   const [view, setView] = useState<View>('main');
   const [showNewCharModal, setShowNewCharModal] = useState(false);
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export function AppMain({
   } = useDictionary({ storageMode, userId });
 
   const displayUser = formatAccountLabel(userEmail);
-  const payment = getPaymentConfig(isBrazil);
+  const payment = getPaymentConfig();
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
@@ -118,6 +119,15 @@ export function AppMain({
 
   const showGrid = !selected;
   const showAdBanner = showGrid && !adsRemoved;
+
+  useEffect(() => {
+    if (!showAdBanner) return;
+    const onFocus = () => {
+      void refreshProfile();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [showAdBanner, refreshProfile]);
 
   const handleGridSortChange = (sort: GridSort) => {
     setGridSortState(sort);
@@ -165,11 +175,6 @@ export function AppMain({
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Import failed');
     }
-  };
-
-  const handleConfirmPaid = async () => {
-    await setAdsRemoved(true);
-    setView('main');
   };
 
   const handleRemoveFree = async () => {
@@ -333,8 +338,12 @@ export function AppMain({
         payment={payment}
         hasAccount={Boolean(userId)}
         onBack={() => setView('main')}
-        onConfirmPaid={handleConfirmPaid}
         onRemoveFree={handleRemoveFree}
+        onPaymentComplete={async () => {
+          await confirmPlayPurchase();
+          await refreshProfile();
+          setView('main');
+        }}
       />
     );
   }
@@ -435,8 +444,7 @@ export function AppMain({
         {showAdBanner && (
           <AdBanner
             payment={payment}
-            onConfirmPaid={handleConfirmPaid}
-            onMoreOptions={() => setView('removeAds')}
+            onOpenRemoveAds={() => setView('removeAds')}
           />
         )}
       </div>

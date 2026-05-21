@@ -1137,17 +1137,6 @@ img.avatar {
   margin-bottom: 0.5rem;
 }
 
-.remove-ads-pix {
-  text-align: center;
-  margin: 0.75rem 0;
-}
-
-.remove-ads-pix-label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin: 0 0 0.5rem;
-}
-
 .remove-ads-fine {
   font-size: 0.8rem;
   color: var(--text-muted);
@@ -1178,13 +1167,6 @@ img.avatar {
   background: var(--selected-bg);
   border-radius: var(--radius);
   font-size: 0.875rem;
-}
-
-.pix-qr {
-  display: block;
-  margin: 0.75rem 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
 }
 
 .remove-ads-free {

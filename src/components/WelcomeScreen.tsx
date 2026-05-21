@@ -1,3 +1,5 @@
+import { APP_NAME } from '../constants';
+
 interface WelcomeScreenProps {
   syncAvailable: boolean;
   onContinueLocal: () => void;
@@ -14,9 +16,9 @@ export function WelcomeScreen({
   return (
     <div className="welcome-screen">
       <div className="welcome-card">
-        <h1>Tomodachi Dictionary</h1>
+        <h1>{APP_NAME}</h1>
         <p className="welcome-lead">
-          Manage islander dialogue for Tomodachi Life: Living the Dream.
+          Edit islander dialogue, nicknames, and avatars for your custom cast.
         </p>
 
         <button

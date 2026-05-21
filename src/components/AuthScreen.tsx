@@ -65,8 +65,8 @@ export function AuthScreen({
         <h1>{isSignUp ? 'Create account' : 'Sign in'}</h1>
         {isSignUp && (
           <p className="welcome-hint">
-            Email and password. No confirmation email — you can sign in right away
-            after creating an account (with Confirm email turned off in Supabase).
+            Use a real email and password. In Supabase, keep Confirm email off so
+            you can sign in immediately after sign-up.
           </p>
         )}
         <form onSubmit={handleSubmit} className="auth-form">

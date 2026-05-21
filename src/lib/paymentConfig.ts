@@ -1,29 +1,34 @@
+import { usesGooglePlayBilling, usesStripeWebCheckout } from './platform';
+
 export interface PaymentConfig {
   priceLabel: string;
-  /** Opens in a new tab — Stripe Payment Link, Ko-fi, etc. */
   paymentUrl: string | null;
-  showPixQr: boolean;
 }
 
-export function getPaymentConfig(isBrazil: boolean): PaymentConfig {
-  const intlUrl = import.meta.env.VITE_PAYMENT_URL_INTL?.trim() || null;
-  const brUrl = import.meta.env.VITE_PAYMENT_URL_BR?.trim() || null;
+const DEFAULT_STRIPE_URL =
+  'https://donate.stripe.com/28E8wQ3M29A2aC82hnbjW00';
 
-  if (isBrazil) {
+export function getPaymentConfig(): PaymentConfig {
+  if (usesGooglePlayBilling()) {
     return {
-      priceLabel: 'R$ 10',
-      paymentUrl: brUrl ?? intlUrl,
-      showPixQr: true,
+      priceLabel: 'in-app purchase',
+      paymentUrl: null,
     };
   }
 
+  const paymentUrl =
+    import.meta.env.VITE_PAYMENT_URL_INTL?.trim() || DEFAULT_STRIPE_URL;
+
   return {
-    priceLabel: '$5',
-    paymentUrl: intlUrl,
-    showPixQr: false,
+    priceLabel: 'once',
+    paymentUrl,
   };
 }
 
 export function openPaymentLink(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+export function usesWebStripe(): boolean {
+  return usesStripeWebCheckout();
 }

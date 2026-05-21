@@ -44,12 +44,12 @@ export function buildFullCharacterPrompt(
   const island = buildIslandSnapshot(characters);
   const targets = characters.map((c) => c.name).join(', ');
 
-  return `You are writing Tomodachi Life: Living the Dream dialogue for a custom island of parody Miis.
+  return `You are writing spoken dialogue lines for a custom island cast in a life-simulation style game.
 
 NEW CHARACTER: "${newName}"
 
-EXISTING ISLANDERS (voice reference — match this edgy, meme-heavy, in-character tone):
-${island || '(empty island)'}
+EXISTING CAST (voice reference — match tone and humor):
+${island || '(empty cast)'}
 
 EXISTING NAMES (for nicknames): ${targets || '(none)'}
 
@@ -57,14 +57,14 @@ Phrase types (exact JSON keys):
 ${PHRASE_TYPE_LIST}
 
 Rules:
-- Each phrase is short (under ~80 chars), spoken aloud, fits Tomodachi Life UI.
-- Stay faithful to the source character "${newName}" (memes, canon personality, catchphrases).
+- Each phrase is short (under ~80 chars), spoken aloud, fits a simple dialogue UI.
+- Stay faithful to the source character "${newName}" (personality, memes, catchphrases).
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (can start with punctuation).
-- "Shout at the sea" = ALL CAPS energy.
+- "Loud shout" = ALL CAPS energy.
 - Provide exactly 3 distinct options per phrase type (triplets).
-- nicknameDefault: exactly 3 default nicknames for strangers / new islanders.
-- byTargetName: for EACH existing islander listed, 3 nickname options THIS character would use.
-- incoming.bySpeakerName: for EACH existing islander, 3 nickname options THEY would use for "${newName}".
+- nicknameDefault: exactly 3 default nicknames for strangers / new acquaintances.
+- byTargetName: for EACH existing cast member listed, 3 nickname options THIS character would use.
+- incoming.bySpeakerName: for EACH existing cast member, 3 nickname options THEY would use for "${newName}".
 
 Return ONLY valid JSON:
 {
@@ -100,17 +100,17 @@ export function buildOnePhrasePrompt(
   type: PhraseType,
 ): string {
   const existing = character.phrases[type].filter(Boolean);
-  return `Write ONE new Tomodachi Life dialogue line for "${character.name}".
+  return `Write ONE new spoken dialogue line for "${character.name}".
 
 Type: ${phraseLabel(type)} (JSON key: ${type})
 
-Island tone:
+Cast tone reference:
 ${buildIslandSnapshot(allCharacters, character.id)}
 
 EXISTING lines for this type (do NOT duplicate):
 ${JSON.stringify(existing)}
 
-Rules: under ~80 chars, spoken aloud, in-character. "Shout at the sea" = ALL CAPS.
+Rules: under ~80 chars, spoken aloud, in-character. "shoutAtSea" = ALL CAPS.
 
 Return ONLY valid JSON: { "line": "your new line here" }`;
 }
@@ -120,9 +120,9 @@ export function buildOneDefaultNicknamePrompt(
   allCharacters: Character[],
 ): string {
   const existing = character.nicknameDefaults;
-  return `Write ONE default nickname "${character.name}" would use for strangers / new islanders they do not know well.
+  return `Write ONE default nickname "${character.name}" would use for strangers / new acquaintances.
 
-Island context:
+Cast context:
 ${buildIslandSnapshot(allCharacters, character.id)}
 
 EXISTING defaults (do NOT duplicate):
@@ -139,7 +139,7 @@ export function buildOneTargetNicknamePrompt(
   const existing = character.nicknames[target.id] ?? [];
   return `Write ONE nickname "${character.name}" would use to address "${target.name}".
 
-Island context:
+Cast context:
 ${buildIslandSnapshot(allCharacters, character.id)}
 
 EXISTING nicknames for ${target.name} (do NOT duplicate):
@@ -156,7 +156,7 @@ export function buildOneIncomingNicknamePrompt(
   const existing = speaker.nicknames[subject.id] ?? [];
   return `Write ONE nickname "${speaker.name}" would use to address "${subject.name}" (from ${speaker.name}'s voice).
 
-Island context:
+Cast context:
 ${buildIslandSnapshot(allCharacters, subject.id)}
 
 EXISTING nicknames ${speaker.name} uses for ${subject.name} (do NOT duplicate):

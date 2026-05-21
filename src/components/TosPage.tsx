@@ -1,3 +1,5 @@
+import { APP_NAME } from '../constants';
+
 interface TosPageProps {
   onBack: () => void;
 }
@@ -13,58 +15,75 @@ export function TosPage({ onBack }: TosPageProps) {
       </header>
       <article className="tos-body">
         <p>
-          <strong>Last updated:</strong> May 2026. By using Tomodachi Dictionary
-          (&quot;the App&quot;), you agree to these terms.
+          <strong>Last updated:</strong> May 2026. By using {APP_NAME} (&quot;the
+          App&quot;), you agree to these terms.
         </p>
 
-        <h2>1. What the App is</h2>
+        <h2>1. Independent service</h2>
         <p>
-          The App is a fan-made editor for custom dialogue and nicknames in
-          Tomodachi Life: Living the Dream. It is not affiliated with, endorsed
-          by, or sponsored by Nintendo or any rights holder of Tomodachi Life.
-          All game trademarks belong to their owners.
+          {APP_NAME} is a standalone tool for writing and organizing character
+          dialogue and nicknames. The App is operated independently and is not
+          affiliated with, endorsed by, sponsored by, or connected to any game
+          publisher, console manufacturer, entertainment company, trademark
+          owner, or other third party. No company names, game titles, or
+          copyrighted characters from other products are used by the App itself.
         </p>
 
         <h2>2. Your content</h2>
         <p>
-          You are solely responsible for text you write, import, or generate
-          (including via third-party AI). Do not upload unlawful, harassing,
-          hateful, or infringing content. You grant the operator a limited
-          technical license to store and process your content only to provide
-          sync and hosting features you enable.
+          You are solely responsible for names, text, images, and other material
+          you create, import, or generate (including via third-party AI). Do not
+          upload unlawful, harassing, hateful, or infringing content. You grant
+          the operator a limited technical license to store and process your
+          content only to provide features you enable (such as cloud sync).
         </p>
 
-        <h2>3. AI-generated text</h2>
+        <h2>3. No association with third parties</h2>
         <p>
-          Optional AI features use your own API key and an external provider
-          (e.g. Google Gemini). Generated output may be inaccurate or
-          inappropriate. Review everything before use in-game. The operator does
-          not guarantee quality or safety of AI suggestions.
+          References you enter (character names, dialogue, etc.) are your own.
+          The operator does not claim any rights in third-party intellectual
+          property and does not authorize you to use anyone else&apos;s trademarks
+          or copyrighted works. You are responsible for compliance with laws and
+          rights of others.
         </p>
 
-        <h2>4. Accounts and cloud save</h2>
+        <h2>4. AI-generated text</h2>
         <p>
-          If you create an account, you must keep your credentials secure. Usernames
-          map to internal auth identifiers; we do not require a personal email for
-          sign-up. Cloud data may be lost due to outages, policy changes, or account
-          closure. Keep your own backups when possible.
+          Optional AI features use your own API key and an external provider.
+          Generated output may be inaccurate or inappropriate. Review everything
+          before use. The operator does not guarantee quality or safety of AI
+          suggestions.
         </p>
 
-        <h2>5. Acceptable use</h2>
+        <h2>5. Accounts and cloud save</h2>
+        <p>
+          If you create an account, keep your credentials secure. Cloud data may
+          be lost due to outages, policy changes, or account closure. Keep your
+          own backups when possible.
+        </p>
+
+        <h2>6. Payments</h2>
+        <p>
+          Optional payments (web checkout or mobile store) may remove advertising.
+          Purchases are handled by third-party payment providers. Refunds follow
+          those providers&apos; policies unless required by law.
+        </p>
+
+        <h2>7. Acceptable use</h2>
         <p>
           Do not abuse the service (spam, automated scraping, attempts to break
-          limits, or harm other users). Fair-use limits (e.g. phrase counts per
-          type) may apply on public deployments.
+          limits, or harm other users). Usage limits may apply on public
+          deployments.
         </p>
 
-        <h2>6. Disclaimer of warranties</h2>
+        <h2>8. Disclaimer of warranties</h2>
         <p>
           THE APP IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT
           WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY,
           FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
         </p>
 
-        <h2>7. Limitation of liability</h2>
+        <h2>9. Limitation of liability</h2>
         <p>
           TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE OPERATOR AND CONTRIBUTORS
           SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
@@ -75,21 +94,21 @@ export function TosPage({ onBack }: TosPageProps) {
           TEN US DOLLARS (USD $10), IF YOU PAID NOTHING.
         </p>
 
-        <h2>8. Indemnity</h2>
+        <h2>10. Indemnity</h2>
         <p>
           You agree to defend and indemnify the operator against claims arising
           from your content or misuse of the App, except where caused by our
           intentional misconduct.
         </p>
 
-        <h2>9. Changes and termination</h2>
+        <h2>11. Changes and termination</h2>
         <p>
           We may update these terms or discontinue the App at any time. Continued
           use after changes means acceptance. We may suspend accounts that violate
           these terms.
         </p>
 
-        <h2>10. Governing law</h2>
+        <h2>12. Governing law</h2>
         <p>
           These terms are governed by the laws applicable where the operator
           resides, without regard to conflict-of-law rules. Courts in that
@@ -97,7 +116,7 @@ export function TosPage({ onBack }: TosPageProps) {
           consumer protection laws in your country require otherwise.
         </p>
 
-        <h2>11. Contact</h2>
+        <h2>13. Contact</h2>
         <p>
           For questions about these terms, contact the project maintainer through
           the repository listed on the App&apos;s deployment page.

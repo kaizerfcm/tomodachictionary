@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { detectAccountCountry, type AccountCountry } from '../lib/detectCountry';
+import { detectAccountCountry } from '../lib/detectCountry';
 import { getLocalAdsRemoved, setLocalAdsRemoved } from '../lib/localAds';
+import { isAndroidApp } from '../lib/platform';
 import {
   ensureUserProfile,
   loadUserProfile,
@@ -8,17 +9,40 @@ import {
 } from '../lib/userProfile';
 import { isSupabaseConfigured } from '../lib/supabase';
 
+async function loadProfileState(userId: string) {
+  let profile = await loadUserProfile(userId);
+  if (!profile) {
+    profile = await ensureUserProfile(userId, detectAccountCountry());
+  }
+  return profile;
+}
+
 export function useUserProfile(userId: string | null | undefined) {
   const [adsRemoved, setAdsRemovedState] = useState(() =>
     userId ? false : getLocalAdsRemoved(),
   );
-  const [countryCode, setCountryCode] = useState<AccountCountry | null>(null);
   const [loading, setLoading] = useState(Boolean(userId && isSupabaseConfigured()));
+
+  const applyProfile = useCallback((adsRemoved: boolean) => {
+    setAdsRemovedState(adsRemoved);
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!userId || !isSupabaseConfigured()) {
+      applyProfile(getLocalAdsRemoved());
+      return;
+    }
+    try {
+      const profile = await loadProfileState(userId);
+      applyProfile(profile.adsRemoved);
+    } catch {
+      /* keep current state */
+    }
+  }, [applyProfile, userId]);
 
   useEffect(() => {
     if (!userId || !isSupabaseConfigured()) {
-      setAdsRemovedState(getLocalAdsRemoved());
-      setCountryCode(null);
+      applyProfile(getLocalAdsRemoved());
       setLoading(false);
       return;
     }
@@ -27,19 +51,12 @@ export function useUserProfile(userId: string | null | undefined) {
     (async () => {
       try {
         setLoading(true);
-        let profile = await loadUserProfile(userId);
-        if (!profile) {
-          profile = await ensureUserProfile(userId, detectAccountCountry());
-        }
+        const profile = await loadProfileState(userId);
         if (!cancelled) {
-          setAdsRemovedState(profile.adsRemoved);
-          setCountryCode(profile.countryCode ?? detectAccountCountry());
+          applyProfile(profile.adsRemoved);
         }
       } catch {
-        if (!cancelled) {
-          setAdsRemovedState(false);
-          setCountryCode(detectAccountCountry());
-        }
+        if (!cancelled) applyProfile(false);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -48,8 +65,9 @@ export function useUserProfile(userId: string | null | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [applyProfile, userId]);
 
+  /** Free opt-out (web) or after verified Play purchase / Stripe webhook. */
   const setAdsRemoved = useCallback(
     async (removed: boolean) => {
       setAdsRemovedState(removed);
@@ -62,12 +80,16 @@ export function useUserProfile(userId: string | null | undefined) {
     [userId],
   );
 
-  const isBrazil = countryCode === 'BR';
+  const confirmPlayPurchase = useCallback(async () => {
+    if (!isAndroidApp()) return;
+    await setAdsRemoved(true);
+  }, [setAdsRemoved]);
 
   return {
     adsRemoved,
-    isBrazil,
     loading,
     setAdsRemoved,
+    refreshProfile,
+    confirmPlayPurchase,
   };
 }

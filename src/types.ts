@@ -5,7 +5,7 @@ export const PHRASE_TYPES = [
   { key: 'startingSentence', label: 'Starting a sentence' },
   { key: 'endingSentence', label: 'Ending a sentence' },
   { key: 'beforeEating', label: 'Before eating' },
-  { key: 'shoutAtSea', label: 'Shout at the sea' },
+  { key: 'shoutAtSea', label: 'Loud shout' },
   { key: 'whenHappy', label: 'When happy' },
   { key: 'whenSad', label: 'When sad' },
   { key: 'whenAngry', label: 'When angry' },

@@ -1,12 +1,12 @@
-# Tomodachi Dictionary
+# Tomodict
 
-Web editor for Tomodachi Life: Living the Dream islander dialogue and nicknames. Local storage by default; optional Supabase sync.
+Web and Android editor for islander dialogue, nicknames, and avatars. Local storage by default; optional Supabase sync.
 
 ## Quick start
 
 ```bash
 npm install
-cp .env.example .env   # optional — cloud accounts
+cp .env.example .env   # optional — cloud + Stripe
 npm run dev
 ```
 
@@ -17,10 +17,12 @@ npm test
 
 ## Optional setup
 
-| Feature | What you need |
-|--------|----------------|
-| Cloud sync | `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` / Vercel; run `supabase/schema.sql` and `supabase/user_profiles.sql` |
-| AI generate | Gemini API key in app **Configuration** (per device) |
-| Seed data | Copy `public/*.example` → `public/seed.md` and `nicknames-seed.json` (gitignored) |
+| Feature | Setup |
+|--------|--------|
+| Cloud sync | `VITE_SUPABASE_*` + run `supabase/schema.sql` and `supabase/user_profiles.sql` |
+| Web payments | `VITE_PAYMENT_URL_INTL` + Stripe webhook — [docs/MONETIZATION.md](docs/MONETIZATION.md) |
+| Android APK | [docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md) |
 
-Deploy: Vite static build to Vercel or Cloudflare Pages (`dist/`). Supabase: enable Email auth, disable Confirm email. Payments: [docs/MONETIZATION.md](docs/MONETIZATION.md).
+Supabase Auth: **Email ON**, **Confirm email OFF**.
+
+Deploy: Vite static build (`dist/`) to Vercel or similar.

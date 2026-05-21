@@ -1,86 +1,71 @@
-# Monetization setup (fast checkout)
+# Monetization (Tomodict web)
 
-Goal: **one click from the app → payment page → one tap “I paid”** to hide ads. No extra screens unless the user needs PIX or the free opt-out.
+## User flow (minimal clicks)
 
-## 1. Supabase Auth (email, no confirmation)
+1. Home screen → **Pay to remove ads** → Stripe checkout (your donate link).
+2. User pays with the **same email** as their Tomodict account.
+3. Stripe webhook sets `user_profiles.ads_removed = true`.
+4. User returns to the app → ads disappear (auto-refresh on window focus).
 
-In [Supabase Dashboard](https://supabase.com/dashboard) → your project:
+Optional: **Remove ads without paying** (web only, env `VITE_ALLOW_FREE_AD_REMOVAL=true`).
 
-1. **Authentication → Providers → Email** → **Enable**
-2. Same page → **Confirm email** → **OFF** (users sign in immediately after sign-up)
-3. **Authentication → Sign In / Providers** → ensure **Email signups** are allowed (not disabled)
+There is **no** “I paid” honor button and **no** PIX QR on web.
 
-If you see `Email signups are disabled`, re-enable the Email provider as above.
+## 1. Stripe donate / payment link
 
-Run SQL if you have not already:
+Default URL (also in code fallback):
 
-- `supabase/schema.sql`
-- `supabase/user_profiles.sql`
+`https://donate.stripe.com/28E8wQ3M29A2aC82hnbjW00`
 
-## 2. Stripe Payment Link (recommended, ~10 minutes)
-
-Works internationally; supports cards; can add PIX in Brazil if your Stripe account supports it.
-
-1. [Stripe Dashboard](https://dashboard.stripe.com) → **Payment Links** → **Create**
-2. Product: one-time **Remove ads — Tomodachi Dictionary**
-   - International link: **$5 USD**
-   - Optional second link for Brazil: **R$ 10 BRL** (or use PIX below + one USD link)
-3. After creating, copy the link URL (looks like `https://buy.stripe.com/...`)
-
-### Vercel env vars
-
-Project → **Settings → Environment Variables** → redeploy:
-
-| Variable | Example |
-|----------|---------|
-| `VITE_PAYMENT_URL_INTL` | `https://buy.stripe.com/xxxx` ($5 link) |
-| `VITE_PAYMENT_URL_BR` | `https://buy.stripe.com/yyyy` (R$10 link, optional) |
-
-If `VITE_PAYMENT_URL_BR` is empty, Brazilian users get the international link + the PIX QR on the options page.
-
-Local `.env`:
+Vercel env:
 
 ```
-VITE_PAYMENT_URL_INTL=https://buy.stripe.com/...
-VITE_PAYMENT_URL_BR=https://buy.stripe.com/...
+VITE_PAYMENT_URL_INTL=https://donate.stripe.com/28E8wQ3M29A2aC82hnbjW00
+VITE_ALLOW_FREE_AD_REMOVAL=true
 ```
 
-## 3. What users see in the app
+## 2. Stripe webhook (required for paid ad removal)
 
-**Home screen (ad strip):**
+Without the webhook, paying does **not** remove ads automatically.
 
-- **Pay $5** / **Pay R$ 10** → opens your Stripe link in a new tab (1 click)
-- **I paid** → hides ads on this account immediately (honor system)
-- **PIX / options** → short page with PIX QR (Brazil only) + free opt-out link
+### Supabase
 
-Configure payment URLs so most users never need the extra page.
+1. Run `supabase/user_profiles.sql` if not done.
+2. Deploy function:
 
-## 4. Brazil PIX (already in the app)
+```bash
+supabase login
+supabase link --project-ref YOUR_REF
+supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=eyJ...service_role...
+supabase functions deploy stripe-webhook --no-verify-jwt
+```
 
-`public/pix-qr.png` is shown only for accounts detected as Brazil (timezone / `pt-BR` language). Users can scan PIX, then tap **I paid**.
+`SUPABASE_URL` is provided automatically in Edge Functions.
 
-Replace the image anytime; keep it square (~200–400px).
+### Stripe Dashboard
 
-## 5. Optional: auto-remove ads after Stripe (advanced)
+1. **Developers → Webhooks → Add endpoint**
+2. URL: `https://YOUR_REF.supabase.co/functions/v1/stripe-webhook`
+3. Event: `checkout.session.completed`
+4. Copy **Signing secret** → `STRIPE_WEBHOOK_SECRET`
 
-Payment Links alone do **not** flip `ads_removed` automatically. Today users tap **I paid** after checkout.
+### Matching accounts
 
-To automate later:
+Checkout email must match the user’s **Supabase Auth email**. Tell users to sign in with that email before or after paying.
 
-1. Stripe → **Developers → Webhooks** → `checkout.session.completed`
-2. Supabase **Edge Function** updates `user_profiles.ads_removed` for a matching email/metadata
+## 3. Supabase Auth
 
-That is extra work; the honor **I paid** button is fine for a small fan app.
+- Email provider **ON**
+- **Confirm email** **OFF**
 
-## 6. Real ad network (optional)
+## 4. Android
 
-The bottom strip is a placeholder. To show real ads later, embed AdSense (or similar) in `AdBanner.tsx` and still hide it when `ads_removed` is true.
+See **`docs/ANDROID_BUILD.md`**. Android uses **Google Play** billing only — no Stripe link, no free remove-ads link.
 
 ## Checklist
 
-- [ ] Supabase Email provider ON, Confirm email OFF
-- [ ] `user_profiles` table created
-- [ ] Stripe Payment Link(s) created
-- [ ] `VITE_PAYMENT_URL_*` set on Vercel
-- [ ] Redeploy
-- [ ] Test: Pay → I paid → ad strip gone after refresh
+- [ ] `VITE_PAYMENT_URL_INTL` on Vercel
+- [ ] Webhook deployed + secret set
+- [ ] Test payment with signed-in account email
+- [ ] Ads hidden after return (focus tab or refresh)

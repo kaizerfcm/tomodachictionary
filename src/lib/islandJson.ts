@@ -33,7 +33,7 @@ export function downloadIslandJson(data: DictionaryData, filename?: string): voi
   a.href = url;
   a.download =
     filename ??
-    `tomodachi-island-${new Date().toISOString().slice(0, 10)}.json`;
+    `tomodict-island-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

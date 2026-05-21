@@ -1,4 +1,4 @@
-/** ISO-style code stored on the account. Only BR gets PIX pricing UI. */
+/** ISO-style code stored on the account (analytics / profile metadata). */
 export type AccountCountry = 'BR' | 'INTL';
 
 const BR_TIMEZONES = new Set([

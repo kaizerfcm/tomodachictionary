@@ -12,6 +12,7 @@ import { sortCharacters } from './lib/sortCharacters';
 import { useDictionary } from './hooks/useDictionary';
 import { useSettings } from './hooks/useSettings';
 import { useUserProfile } from './hooks/useUserProfile';
+import { useTheme } from './hooks/useTheme';
 import { Sidebar } from './components/Sidebar';
 import { CharacterEditor } from './components/CharacterEditor';
 import { CharacterGrid } from './components/CharacterGrid';
@@ -63,6 +64,8 @@ export function AppMain({
   onOpenAuth,
 }: AppMainProps) {
   const { apiKey, setApiKey, hasApiKey } = useSettings();
+  const { preference: themePreference, setPreference: setThemePreference } =
+    useTheme();
   const { adsRemoved, setAdsRemoved, refreshProfile, confirmPlayPurchase } =
     useUserProfile(userId);
   const [view, setView] = useState<View>('main');
@@ -109,8 +112,9 @@ export function AppMain({
     clearAllData,
   } = useDictionary({ storageMode, userId });
 
-  const displayUser = formatAccountLabel(userEmail);
+  const accountEmail = userEmail ? formatAccountLabel(userEmail) : undefined;
   const payment = getPaymentConfig();
+  const signedIn = storageMode === 'cloud' && Boolean(userId);
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
@@ -323,6 +327,9 @@ export function AppMain({
       <ConfigPage
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
+        accountEmail={accountEmail}
+        themePreference={themePreference}
+        onThemePreferenceChange={setThemePreference}
         onBack={() => setView('main')}
       />
     );
@@ -361,17 +368,17 @@ export function AppMain({
         onOpenConfig={() => setView('config')}
         onOpenTos={() => setView('tos')}
         hasApiKey={hasApiKey}
+        signedIn={signedIn}
+        onSignOut={signedIn ? onSignOut : undefined}
       />
       <div className="main-area">
         <SyncBanner
           mode={storageMode}
-          displayName={displayUser}
           syncStatus={syncStatus}
           syncError={syncError}
           syncAvailable={syncAvailable}
           onCreateAccount={() => onOpenAuth('signUp')}
           onSignIn={() => onOpenAuth('signIn')}
-          onSignOut={onSignOut}
         />
         <div className="main-area-body">
           {selected ? (

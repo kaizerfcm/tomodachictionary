@@ -96,38 +96,45 @@ function NicknameMiniCard({
 }) {
   return (
     <li className="nickname-mini-card">
-      <div className="nickname-mini-head">
-        <CharacterAvatar
-          character={character}
-          size="xs"
-          onClick={() => onOpenCharacter(character.id)}
-        />
-        <span className="nickname-mini-name">{character.name}</span>
-        {hasApiKey && onGenerate && (
-          <AiSparkButton
-            busy={aiBusy}
-            disabled={!canAdd}
-            title={generateTitle ?? 'Generate nickname'}
-            onClick={onGenerate}
-          />
-        )}
-      </div>
-      {values.length > 0 && (
-        <NicknameChipList
-          values={values}
-          onUpdateAt={onUpdateAt}
-          onRemoveAt={onRemoveAt}
-          ariaLabel={ariaLabel}
-        />
-      )}
       <button
         type="button"
-        className="btn btn-secondary btn-sm btn-add-below"
-        disabled={!canAdd}
-        onClick={onAdd}
+        className="nickname-mini-card-head"
+        onClick={() => onOpenCharacter(character.id)}
+        title={`Open ${character.name}`}
       >
-        +
+        <CharacterAvatar character={character} size="sm" />
+        <span className="nickname-mini-name">{character.name}</span>
       </button>
+      <div className="nickname-mini-card-body">
+        {values.length > 0 ? (
+          <NicknameChipList
+            values={values}
+            onUpdateAt={onUpdateAt}
+            onRemoveAt={onRemoveAt}
+            ariaLabel={ariaLabel}
+          />
+        ) : (
+          <p className="nickname-mini-empty">No nicknames yet</p>
+        )}
+        <div className="nickname-mini-card-actions">
+          {hasApiKey && onGenerate && (
+            <AiSparkButton
+              busy={aiBusy}
+              disabled={!canAdd}
+              title={generateTitle ?? 'Generate nickname'}
+              onClick={onGenerate}
+            />
+          )}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!canAdd}
+            onClick={onAdd}
+          >
+            + Add
+          </button>
+        </div>
+      </div>
     </li>
   );
 }

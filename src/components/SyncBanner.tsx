@@ -2,44 +2,38 @@ import type { SyncStatus } from '../hooks/useDictionary';
 
 interface SyncBannerProps {
   mode: 'local' | 'cloud';
-  displayName?: string;
   syncStatus?: SyncStatus;
   syncError?: string | null;
   onCreateAccount: () => void;
   onSignIn: () => void;
-  onSignOut: () => void;
   syncAvailable: boolean;
 }
 
 export function SyncBanner({
   mode,
-  displayName,
   syncStatus,
   syncError,
   onCreateAccount,
   onSignIn,
-  onSignOut,
   syncAvailable,
 }: SyncBannerProps) {
-  if (mode === 'cloud' && displayName) {
-    let statusText = '';
-    if (syncStatus === 'saving') statusText = 'Saving…';
-    else if (syncStatus === 'saved') statusText = 'Saved';
-    else if (syncStatus === 'error') statusText = 'Sync error';
+  if (mode === 'cloud') {
+    const showStatus =
+      syncStatus === 'saving' ||
+      syncStatus === 'error' ||
+      Boolean(syncError);
+
+    if (!showStatus) return null;
+
+    let statusText = 'Sync error';
+    if (syncStatus === 'saving') statusText = 'Saving to cloud…';
+    else if (syncStatus === 'error') statusText = 'Could not save';
 
     return (
       <div className="sync-banner sync-banner-cloud">
-        <span className="sync-banner-text">
-          {displayName}
-          {statusText && (
-            <span className={`sync-status sync-status-${syncStatus}`}>
-              · {statusText}
-            </span>
-          )}
+        <span className={`sync-banner-text sync-status-${syncStatus}`}>
+          {statusText}
         </span>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onSignOut}>
-          Sign out
-        </button>
         {syncError && <p className="sync-banner-error">{syncError}</p>}
       </div>
     );

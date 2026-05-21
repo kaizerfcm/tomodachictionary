@@ -15,6 +15,8 @@ interface SidebarProps {
   onOpenConfig: () => void;
   onOpenTos: () => void;
   hasApiKey: boolean;
+  signedIn?: boolean;
+  onSignOut?: () => void;
 }
 
 export function Sidebar({
@@ -28,6 +30,8 @@ export function Sidebar({
   onOpenConfig,
   onOpenTos,
   hasApiKey,
+  signedIn,
+  onSignOut,
 }: SidebarProps) {
   const [listOpen, setListOpen] = useState(getSidebarListOpen);
   const importRef = useRef<HTMLInputElement>(null);
@@ -133,6 +137,15 @@ export function Sidebar({
         <button type="button" className="btn btn-ghost" onClick={handleClearAll}>
           Clear all data
         </button>
+        {signedIn && onSignOut && (
+          <button
+            type="button"
+            className="btn btn-ghost sidebar-sign-out"
+            onClick={onSignOut}
+          >
+            Sign out
+          </button>
+        )}
       </footer>
     </aside>
   );

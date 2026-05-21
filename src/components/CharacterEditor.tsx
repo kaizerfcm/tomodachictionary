@@ -105,7 +105,7 @@ export function CharacterEditor({
         >
           ← Islanders
         </button>
-        <div className="editor-title-row">
+        <div className="editor-identity">
           <label className="avatar-upload-label">
             <CharacterAvatar character={character} size="lg" />
             <input
@@ -136,7 +136,7 @@ export function CharacterEditor({
             </button>
           )}
           <button type="button" className="btn btn-danger btn-sm" onClick={handleDelete}>
-            Delete
+            Delete character
           </button>
         </div>
       </header>

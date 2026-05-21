@@ -97,7 +97,6 @@ export function PhraseEditor({
 }) {
   return (
     <section className="phrases-panel">
-      <h2 className="panel-title">Dialogue phrases</h2>
       {PHRASE_TYPES.map(({ key, label }) => (
         <PhraseSection
           key={key}

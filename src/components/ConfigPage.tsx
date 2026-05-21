@@ -1,10 +1,22 @@
+import type { ThemePreference } from '../lib/theme';
+
 interface ConfigPageProps {
   apiKey: string;
   onApiKeyChange: (key: string) => void;
+  accountEmail?: string;
+  themePreference: ThemePreference;
+  onThemePreferenceChange: (pref: ThemePreference) => void;
   onBack: () => void;
 }
 
-export function ConfigPage({ apiKey, onApiKeyChange, onBack }: ConfigPageProps) {
+export function ConfigPage({
+  apiKey,
+  onApiKeyChange,
+  accountEmail,
+  themePreference,
+  onThemePreferenceChange,
+  onBack,
+}: ConfigPageProps) {
   return (
     <main className="config-page">
       <header className="config-header">
@@ -13,6 +25,40 @@ export function ConfigPage({ apiKey, onApiKeyChange, onBack }: ConfigPageProps) 
         </button>
         <h1>Configuration</h1>
       </header>
+
+      {accountEmail && (
+        <section className="config-section">
+          <h2>Account</h2>
+          <p className="config-desc">
+            Signed in for cloud sync. Use this email at checkout if you pay to
+            remove ads on the web.
+          </p>
+          <p className="config-account-email">{accountEmail}</p>
+        </section>
+      )}
+
+      <section className="config-section">
+        <h2>Appearance</h2>
+        <p className="config-desc">
+          Theme follows your device when set to System. Change anytime here.
+        </p>
+        <label className="config-label" htmlFor="theme-pref">
+          Theme
+        </label>
+        <select
+          id="theme-pref"
+          className="config-input config-select"
+          value={themePreference}
+          onChange={(e) =>
+            onThemePreferenceChange(e.target.value as ThemePreference)
+          }
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </section>
+
       <section className="config-section">
         <h2>Gemini API</h2>
         <p className="config-desc">

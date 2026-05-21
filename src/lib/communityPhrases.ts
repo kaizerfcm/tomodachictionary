@@ -39,13 +39,15 @@ export async function fetchCommunityPhraseSuggestions(
   if (!name) return [];
 
   const supabase = getSupabase();
-  const { data, error } = await supabase.rpc('get_community_phrase_suggestions', {
-    p_character_name: name,
-    p_phrase_type: phraseType,
-    p_limit: COMMUNITY_SUGGESTION_LIMIT,
+  const { data, error } = await supabase.functions.invoke('community-phrases', {
+    body: { characterName: name, phraseType },
   });
 
   if (error) throw error;
-  if (!Array.isArray(data)) return [];
-  return data.filter((s): s is string => typeof s === 'string' && s.trim() !== '');
+
+  const payload = data as { phrases?: unknown } | null;
+  if (!payload || !Array.isArray(payload.phrases)) return [];
+  return payload.phrases.filter(
+    (s): s is string => typeof s === 'string' && s.trim() !== '',
+  );
 }

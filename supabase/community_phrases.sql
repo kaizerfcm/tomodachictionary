@@ -1,8 +1,14 @@
 -- Community phrase suggestions (run in Supabase SQL Editor).
--- Returns up to N distinct phrases for a character name + phrase type from other users' islands.
--- No user ids or island data are exposed.
+-- Logic lives in private schema (not exposed via PostgREST).
+-- Clients call the community-phrases Edge Function (JWT required).
 
-create or replace function public.get_community_phrase_suggestions(
+create schema if not exists private;
+
+revoke all on schema private from public;
+grant usage on schema private to postgres, service_role;
+
+create or replace function private.get_community_phrase_suggestions(
+  p_user_id uuid,
   p_character_name text,
   p_phrase_type text,
   p_limit integer default 12
@@ -10,18 +16,17 @@ create or replace function public.get_community_phrase_suggestions(
 returns setof text
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, private
 as $$
 declare
   normalized text := lower(trim(p_character_name));
-  uid uuid := auth.uid();
   allowed_types text[] := array[
     'catchphrases', 'startingSentence', 'endingSentence', 'beforeEating',
     'shoutAtSea', 'whenHappy', 'whenSad', 'whenAngry', 'whileSleeping', 'greeting'
   ];
 begin
-  if uid is null then
-    raise exception 'not authenticated';
+  if p_user_id is null then
+    raise exception 'missing user id';
   end if;
 
   if normalized = '' then
@@ -53,12 +58,16 @@ begin
       else '[]'::jsonb
     end
   ) as pt(phrase_text)
-  where idata.user_id <> uid
+  where idata.user_id <> p_user_id
     and lower(trim(ch.elem ->> 'name')) = normalized
     and trim(coalesce(pt.phrase_text, '')) <> ''
   limit p_limit;
 end;
 $$;
 
-revoke all on function public.get_community_phrase_suggestions(text, text, integer) from public;
-grant execute on function public.get_community_phrase_suggestions(text, text, integer) to authenticated;
+revoke all on function private.get_community_phrase_suggestions(uuid, text, text, integer) from public;
+revoke all on function private.get_community_phrase_suggestions(uuid, text, text, integer) from anon;
+revoke all on function private.get_community_phrase_suggestions(uuid, text, text, integer) from authenticated;
+
+-- Remove legacy public RPC if present (fixes Supabase linter warnings).
+drop function if exists public.get_community_phrase_suggestions(text, text, integer);

@@ -13,7 +13,8 @@
     "preview": "vite preview --host",
     "cap:sync": "npm run build:android && npx cap sync android",
     "cap:open": "npx cap open android",
-    "supabase:deploy-webhook": "supabase functions deploy stripe-webhook --no-verify-jwt"
+    "supabase:deploy-webhook": "supabase functions deploy stripe-webhook --no-verify-jwt",
+    "supabase:deploy-community-phrases": "supabase functions deploy community-phrases"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.2",

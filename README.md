@@ -25,7 +25,10 @@ npm test
 
 ```bash
 npm run supabase:deploy-webhook   # after secrets are set in Supabase
+npm run supabase:deploy-community-phrases   # after community_phrases.sql
 ```
+
+Security: [docs/SUPABASE_SECURITY.md](docs/SUPABASE_SECURITY.md)
 
 Supabase Auth: **Email ON**, **Confirm email OFF**.
 

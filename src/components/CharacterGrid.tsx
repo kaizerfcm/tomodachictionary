@@ -27,25 +27,27 @@ export function CharacterGrid({
 
   return (
     <div className="character-grid-page">
-      <header className="grid-page-header">
-        <h2 className="grid-page-title">Islanders</h2>
-        <div className="grid-page-actions">
-          <label className="grid-sort-label">
-            Sort
-            <select
-              className="grid-sort-select"
-              value={sort}
-              onChange={(e) => onSortChange(e.target.value as GridSort)}
-            >
-              <option value="name">Name</option>
-              <option value="dateAdded">Date added</option>
-            </select>
-          </label>
-          <button type="button" className="btn btn-primary btn-sm" onClick={onAdd}>
-            + Add
-          </button>
-        </div>
-      </header>
+      <div className="character-grid-inner">
+        <header className="grid-page-header">
+          <h2 className="grid-page-title">Islanders</h2>
+          <div className="grid-page-actions">
+            <label className="grid-sort-label">
+              <span className="grid-sort-text">Sort</span>
+              <select
+                className="grid-sort-select"
+                value={sort}
+                onChange={(e) => onSortChange(e.target.value as GridSort)}
+                aria-label="Sort islanders"
+              >
+                <option value="name">Name</option>
+                <option value="dateAdded">Date added</option>
+              </select>
+            </label>
+            <button type="button" className="btn btn-primary btn-sm" onClick={onAdd}>
+              + Add
+            </button>
+          </div>
+        </header>
       {sorted.length === 0 ? (
         <p className="empty-hint grid-empty">
           No characters yet. Add one to get started.
@@ -75,6 +77,7 @@ export function CharacterGrid({
           ))}
         </ul>
       )}
+      </div>
       <span className="sr-only" aria-hidden="true">
         {MAX_CHARACTER_NAME_LENGTH}
       </span>

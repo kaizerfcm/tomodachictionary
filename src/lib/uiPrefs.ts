@@ -2,6 +2,7 @@ export type GridSort = 'name' | 'dateAdded';
 
 const KEYS = {
   sidebarList: 'tomodachi.sidebarListOpen',
+  sidebarCollapsed: 'tomodict.sidebarCollapsed',
   outgoingNick: 'tomodachi.outgoingNickOpen',
   incomingNick: 'tomodachi.incomingNickOpen',
   gridSort: 'tomodachi.gridSort',
@@ -32,6 +33,14 @@ export function getSidebarListOpen(): boolean {
 
 export function setSidebarListOpen(open: boolean): void {
   writeBool(KEYS.sidebarList, open);
+}
+
+export function getSidebarCollapsed(): boolean {
+  return readBool(KEYS.sidebarCollapsed, false);
+}
+
+export function setSidebarCollapsed(collapsed: boolean): void {
+  writeBool(KEYS.sidebarCollapsed, collapsed);
 }
 
 export function getOutgoingNickOpen(): boolean {

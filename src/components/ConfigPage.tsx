@@ -6,6 +6,7 @@ interface ConfigPageProps {
   accountEmail?: string;
   themePreference: ThemePreference;
   onThemePreferenceChange: (pref: ThemePreference) => void;
+  onClearAllData: () => void;
   onBack: () => void;
 }
 
@@ -15,8 +16,19 @@ export function ConfigPage({
   accountEmail,
   themePreference,
   onThemePreferenceChange,
+  onClearAllData,
   onBack,
 }: ConfigPageProps) {
+  const handleClearAll = () => {
+    if (
+      window.confirm(
+        'Clear all islanders and dialogue? This cannot be undone.',
+      )
+    ) {
+      onClearAllData();
+    }
+  };
+
   return (
     <main className="config-page">
       <header className="config-header">
@@ -96,6 +108,21 @@ export function ConfigPage({
             characters.
           </p>
         )}
+      </section>
+
+      <section className="config-section config-section-danger">
+        <h2>Data</h2>
+        <p className="config-desc">
+          Permanently remove every character and all dialogue from this device
+          {accountEmail ? ' and cloud save' : ''}.
+        </p>
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={handleClearAll}
+        >
+          Clear all data
+        </button>
       </section>
     </main>
   );

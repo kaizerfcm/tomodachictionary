@@ -1,8 +1,14 @@
 import { useRef, useState } from 'react';
 import { APP_NAME } from '../constants';
 import type { Character } from '../types';
-import { getSidebarListOpen, setSidebarListOpen } from '../lib/uiPrefs';
+import {
+  getSidebarCollapsed,
+  getSidebarListOpen,
+  setSidebarCollapsed,
+  setSidebarListOpen,
+} from '../lib/uiPrefs';
 import { CharacterAvatar } from './CharacterAvatar';
+import { IconButton } from './IconButton';
 
 interface SidebarProps {
   characters: Character[];
@@ -11,7 +17,6 @@ interface SidebarProps {
   onAdd: () => void;
   onExportJson: () => void;
   onImportJson: (file: File) => void;
-  onClearAll: () => void;
   onOpenConfig: () => void;
   onOpenTos: () => void;
   hasApiKey: boolean;
@@ -26,15 +31,23 @@ export function Sidebar({
   onAdd,
   onExportJson,
   onImportJson,
-  onClearAll,
   onOpenConfig,
   onOpenTos,
   hasApiKey,
   signedIn,
   onSignOut,
 }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(getSidebarCollapsed);
   const [listOpen, setListOpen] = useState(getSidebarListOpen);
   const importRef = useRef<HTMLInputElement>(null);
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      setSidebarCollapsed(next);
+      return next;
+    });
+  };
 
   const toggleList = () => {
     setListOpen((open) => {
@@ -44,51 +57,66 @@ export function Sidebar({
     });
   };
 
-  const handleClearAll = () => {
-    if (
-      window.confirm(
-        'Clear all islanders and dialogue? This cannot be undone.',
-      )
-    ) {
-      onClearAll();
-    }
-  };
-
   const handleImportFile = (file: File | undefined) => {
     if (!file) return;
     onImportJson(file);
     if (importRef.current) importRef.current.value = '';
   };
 
+  const showList = collapsed || listOpen;
+
   return (
-    <aside className="sidebar">
+    <aside
+      className={`sidebar${collapsed ? ' sidebar-collapsed' : ''}`}
+      aria-label="Navigation"
+    >
       <header className="sidebar-header">
-        <h1 className="app-title">{APP_NAME}</h1>
-        <button type="button" className="btn btn-primary btn-sm" onClick={onAdd}>
-          + Add character
-        </button>
-        {hasApiKey && (
-          <span className="api-badge" title="Gemini API key configured">
-            AI on
-          </span>
+        <div className="sidebar-header-top">
+          {!collapsed && <h1 className="app-title">{APP_NAME}</h1>}
+          <IconButton
+            icon={collapsed ? 'menu' : 'panelClose'}
+            label={collapsed ? 'Expand menu' : 'Collapse menu'}
+            onClick={toggleCollapsed}
+            active={collapsed}
+          />
+        </div>
+        {!collapsed && (
+          <>
+            <button type="button" className="btn btn-primary btn-sm btn-block" onClick={onAdd}>
+              + Add character
+            </button>
+            {hasApiKey && (
+              <span className="api-badge" title="Gemini API key configured">
+                AI on
+              </span>
+            )}
+          </>
+        )}
+        {collapsed && (
+          <IconButton icon="add" label="Add character" onClick={onAdd} variant="primary" />
         )}
       </header>
 
       <div className="sidebar-list-section">
-        <button
-          type="button"
-          className="sidebar-list-toggle"
-          onClick={toggleList}
-          aria-expanded={listOpen}
-        >
-          <span>Islanders</span>
-          <span className="sidebar-chevron" aria-hidden="true">
-            {listOpen ? '▾' : '▸'}
-          </span>
-          <span className="sidebar-list-count">{characters.length}</span>
-        </button>
-        {listOpen && (
-          <nav className="character-list" aria-label="Characters">
+        {!collapsed && (
+          <button
+            type="button"
+            className="sidebar-list-toggle"
+            onClick={toggleList}
+            aria-expanded={listOpen}
+          >
+            <span>Islanders</span>
+            <span className="sidebar-chevron" aria-hidden="true">
+              {listOpen ? '▾' : '▸'}
+            </span>
+            <span className="sidebar-list-count">{characters.length}</span>
+          </button>
+        )}
+        {showList && (
+          <nav
+            className={`character-list${collapsed ? ' character-list-collapsed' : ''}`}
+            aria-label="Characters"
+          >
             {characters.length === 0 ? (
               <p className="empty-hint sidebar-empty">No characters yet.</p>
             ) : (
@@ -96,11 +124,14 @@ export function Sidebar({
                 <button
                   key={c.id}
                   type="button"
-                  className={`character-item${selectedId === c.id ? ' selected' : ''}`}
+                  className={`character-item${selectedId === c.id ? ' selected' : ''}${collapsed ? ' character-item-collapsed' : ''}`}
                   onClick={() => onSelect(c.id)}
+                  title={c.name}
                 >
-                  <CharacterAvatar character={c} size="sm" />
-                  <span className="character-name">{c.name}</span>
+                  <CharacterAvatar character={c} size={collapsed ? 'sm' : 'sm'} />
+                  {!collapsed && (
+                    <span className="character-name">{c.name}</span>
+                  )}
                 </button>
               ))
             )}
@@ -109,24 +140,19 @@ export function Sidebar({
       </div>
 
       <footer className="sidebar-footer">
-        <div className="sidebar-footer-row">
-          <button type="button" className="btn btn-ghost" onClick={onOpenConfig}>
-            Configuration
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenTos}>
-            Terms
-          </button>
+        <div className="sidebar-icon-toolbar">
+          <IconButton icon="settings" label="Configuration" onClick={onOpenConfig} />
+          <IconButton icon="terms" label="Terms of service" onClick={onOpenTos} />
+          <IconButton icon="export" label="Export JSON" onClick={onExportJson} />
+          <IconButton
+            icon="import"
+            label="Import JSON"
+            onClick={() => importRef.current?.click()}
+          />
+          {signedIn && onSignOut && (
+            <IconButton icon="signOut" label="Sign out" onClick={onSignOut} />
+          )}
         </div>
-        <button type="button" className="btn btn-ghost" onClick={onExportJson}>
-          Export JSON
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => importRef.current?.click()}
-        >
-          Import JSON
-        </button>
         <input
           ref={importRef}
           type="file"
@@ -134,18 +160,6 @@ export function Sidebar({
           className="sr-only"
           onChange={(e) => handleImportFile(e.target.files?.[0])}
         />
-        <button type="button" className="btn btn-ghost" onClick={handleClearAll}>
-          Clear all data
-        </button>
-        {signedIn && onSignOut && (
-          <button
-            type="button"
-            className="btn btn-ghost sidebar-sign-out"
-            onClick={onSignOut}
-          >
-            Sign out
-          </button>
-        )}
       </footer>
     </aside>
   );

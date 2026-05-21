@@ -339,6 +339,7 @@ export function AppMain({
         accountEmail={accountEmail}
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
+        onClearAllData={clearAllData}
         onBack={() => setView('main')}
       />
     );
@@ -373,7 +374,6 @@ export function AppMain({
         onAdd={() => setShowNewCharModal(true)}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
-        onClearAll={clearAllData}
         onOpenConfig={() => setView('config')}
         onOpenTos={() => setView('tos')}
         hasApiKey={hasApiKey}

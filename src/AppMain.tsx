@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getGridSort,
   getIncomingNickOpen,
@@ -80,6 +80,11 @@ export function AppMain({
   const [incomingNickOpen, setIncomingNickOpenState] = useState(
     getIncomingNickOpen,
   );
+  const [nicknameFilterFromId, setNicknameFilterFromId] = useState<string | null>(
+    null,
+  );
+  const prevSelectedId = useRef<string | null | undefined>(undefined);
+  const prevView = useRef<View | undefined>(undefined);
 
   const [newCharReview, setNewCharReview] = useState<{
     name: string;
@@ -93,8 +98,8 @@ export function AppMain({
     setSelectedId,
     loading,
     error,
-    syncStatus,
     syncError,
+    syncToCloud,
     addCharacter,
     addCharacterFull,
     applyCharacters,
@@ -125,6 +130,44 @@ export function AppMain({
 
   const showGrid = !selected;
   const showAdBanner = showGrid && !adsRemoved;
+
+  useEffect(() => {
+    if (loading) return;
+    if (
+      prevSelectedId.current !== undefined &&
+      prevSelectedId.current !== selectedId
+    ) {
+      void syncToCloud();
+    }
+    if (prevView.current !== undefined && prevView.current !== view) {
+      void syncToCloud();
+    }
+    prevSelectedId.current = selectedId;
+    prevView.current = view;
+  }, [selectedId, view, loading, syncToCloud]);
+
+  const handleSelectCharacter = useCallback(
+    (id: string | null) => {
+      setNicknameFilterFromId(null);
+      setSelectedId(id);
+    },
+    [setSelectedId],
+  );
+
+  const handleOpenFromNicknames = useCallback(
+    (toId: string) => {
+      if (selectedId) setNicknameFilterFromId(selectedId);
+      setSelectedId(toId);
+    },
+    [selectedId, setSelectedId],
+  );
+
+  const openView = useCallback(
+    (next: View) => {
+      setView(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!showAdBanner) return;
@@ -192,7 +235,7 @@ export function AppMain({
 
   const handleRemoveFree = async () => {
     await setAdsRemoved(true);
-    setView('main');
+    openView('main');
   };
 
   const runAi = useCallback(
@@ -241,9 +284,9 @@ export function AppMain({
     }) => {
       addCharacterFull(result.character, result.incomingBySpeakerId);
       setNewCharReview(null);
-      setSelectedId(result.character.id);
+      handleSelectCharacter(result.character.id);
     },
-    [addCharacterFull, setSelectedId],
+    [addCharacterFull, handleSelectCharacter],
   );
 
   const handleGeneratePhrase = useCallback(
@@ -340,13 +383,13 @@ export function AppMain({
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
         onClearAllData={clearAllData}
-        onBack={() => setView('main')}
+        onBack={() => openView('main')}
       />
     );
   }
 
   if (view === 'tos') {
-    return <TosPage onBack={() => setView('main')} />;
+    return <TosPage onBack={() => openView('main')} />;
   }
 
   if (view === 'removeAds') {
@@ -354,12 +397,12 @@ export function AppMain({
       <RemoveAdsPage
         payment={payment}
         hasAccount={Boolean(userId)}
-        onBack={() => setView('main')}
+        onBack={() => openView('main')}
         onRemoveFree={handleRemoveFree}
         onPaymentComplete={async () => {
           await confirmPlayPurchase();
           await refreshProfile();
-          setView('main');
+          openView('main');
         }}
       />
     );
@@ -370,31 +413,24 @@ export function AppMain({
       <Sidebar
         characters={sidebarCharacters}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={handleSelectCharacter}
         onAdd={() => setShowNewCharModal(true)}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
-        onOpenConfig={() => setView('config')}
-        onOpenTos={() => setView('tos')}
+        onOpenConfig={() => openView('config')}
+        onOpenTos={() => openView('tos')}
         hasApiKey={hasApiKey}
         signedIn={signedIn}
         onSignOut={signedIn ? onSignOut : undefined}
       />
       <div className="main-area">
-        <SyncBanner
-          mode={storageMode}
-          syncStatus={syncStatus}
-          syncError={syncError}
-          syncAvailable={syncAvailable}
-          onCreateAccount={() => onOpenAuth('signUp')}
-          onSignIn={() => onOpenAuth('signIn')}
-        />
         <div className="main-area-body">
           {selected ? (
             <CharacterEditor
               character={selected}
               allCharacters={characters}
-              onBack={() => setSelectedId(null)}
+              onBack={() => handleSelectCharacter(null)}
+              nicknameFocusCharacterId={nicknameFilterFromId}
               onNameChange={(name) => updateCharacterName(selected.id, name)}
               onAvatarChange={(avatar) =>
                 updateCharacterAvatar(selected.id, avatar)
@@ -441,7 +477,7 @@ export function AppMain({
               onGenerateDefaultNickname={handleGenerateDefaultNickname}
               onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
               onGenerateIncomingNickname={handleGenerateIncomingNickname}
-              onOpenCharacter={setSelectedId}
+              onOpenCharacter={handleOpenFromNicknames}
               communityPhrasesEnabled={communityPhrasesEnabled}
               outgoingNickOpen={outgoingNickOpen}
               incomingNickOpen={incomingNickOpen}
@@ -453,7 +489,7 @@ export function AppMain({
               characters={characters}
               sort={gridSort}
               onSortChange={handleGridSortChange}
-              onSelect={setSelectedId}
+              onSelect={handleSelectCharacter}
               onAdd={() => setShowNewCharModal(true)}
             />
           )}
@@ -461,7 +497,7 @@ export function AppMain({
         {showAdBanner && (
           <AdBanner
             payment={payment}
-            onOpenRemoveAds={() => setView('removeAds')}
+            onOpenRemoveAds={() => openView('removeAds')}
           />
         )}
       </div>
@@ -473,11 +509,18 @@ export function AppMain({
           onAddPlain={(name) => {
             const c = addCharacter(name);
             setShowNewCharModal(false);
-            if (c) setSelectedId(c.id);
+            if (c) handleSelectCharacter(c.id);
           }}
           onAddWithGeneration={handleAddWithGeneration}
         />
       )}
+
+      <SyncBanner
+        syncError={syncError}
+        showLocalPrompt={storageMode === 'local' && syncAvailable}
+        onCreateAccount={() => onOpenAuth('signUp')}
+        onSignIn={() => onOpenAuth('signIn')}
+      />
 
       {newCharReview && (
         <NewCharacterReviewModal

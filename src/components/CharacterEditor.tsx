@@ -33,6 +33,7 @@ interface CharacterEditorProps {
   onGenerateOutgoingNickname: (targetId: string) => void;
   onGenerateIncomingNickname: (speakerId: string) => void;
   onOpenCharacter: (id: string) => void;
+  nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
   outgoingNickOpen: boolean;
   incomingNickOpen: boolean;
@@ -67,6 +68,7 @@ export function CharacterEditor({
   onGenerateOutgoingNickname,
   onGenerateIncomingNickname,
   onOpenCharacter,
+  nicknameFocusCharacterId,
   outgoingNickOpen,
   incomingNickOpen,
   onOutgoingNickOpenChange,
@@ -162,6 +164,7 @@ export function CharacterEditor({
       <NicknamePanel
         subject={character}
         allCharacters={allCharacters}
+        focusCharacterId={nicknameFocusCharacterId}
         outgoingOpen={outgoingNickOpen}
         incomingOpen={incomingNickOpen}
         onOutgoingOpenChange={onOutgoingNickOpenChange}

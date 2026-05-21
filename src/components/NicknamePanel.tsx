@@ -1,6 +1,9 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MAX_NICKNAME_OPTIONS } from '../constants';
-import { getAllNicknamesForSearch } from '../lib/nicknames';
+import {
+  getAllNicknamesForSearch,
+  getIncomingNicknamesForSearch,
+} from '../lib/nicknames';
 import type { Character } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CharacterAvatar } from './CharacterAvatar';
@@ -10,6 +13,8 @@ const MAX_VISIBLE = 24;
 interface NicknamePanelProps {
   subject: Character;
   allCharacters: Character[];
+  /** When set (e.g. after opening another character from this panel), pre-fills the list filter. */
+  focusCharacterId?: string | null;
   outgoingOpen: boolean;
   incomingOpen: boolean;
   onOutgoingOpenChange: (open: boolean) => void;
@@ -164,9 +169,30 @@ function CollapsibleSummary({
   );
 }
 
+function filterOthers(
+  others: Character[],
+  subject: Character,
+  needle: string,
+  mode: 'outgoing' | 'incoming',
+): Character[] {
+  if (!needle) return others;
+  const n = needle.toLowerCase();
+  return others.filter((c) => {
+    const haystack =
+      mode === 'outgoing'
+        ? getAllNicknamesForSearch(subject, c)
+        : getIncomingNicknamesForSearch(c, subject);
+    return (
+      c.name.toLowerCase().includes(n) ||
+      haystack.join(' ').toLowerCase().includes(n)
+    );
+  });
+}
+
 export function NicknamePanel({
   subject,
   allCharacters,
+  focusCharacterId,
   outgoingOpen,
   incomingOpen,
   onOutgoingOpenChange,
@@ -189,29 +215,43 @@ export function NicknamePanel({
 }: NicknamePanelProps) {
   const [filter, setFilter] = useState('');
 
+  useEffect(() => {
+    if (!focusCharacterId) return;
+    const focus = allCharacters.find((c) => c.id === focusCharacterId);
+    if (focus) setFilter(focus.name);
+  }, [focusCharacterId, subject.id, allCharacters]);
+
   const others = useMemo(
     () => allCharacters.filter((c) => c.id !== subject.id),
     [allCharacters, subject.id],
   );
 
-  const visible = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
-    if (!needle) return others;
-    return others.filter((c) => {
-      const haystack = getAllNicknamesForSearch(subject, c)
-        .join(' ')
-        .toLowerCase();
-      return (
-        c.name.toLowerCase().includes(needle) || haystack.includes(needle)
-      );
-    });
-  }, [others, subject, filter]);
+  const needle = filter.trim();
+
+  const visibleOutgoing = useMemo(
+    () => filterOthers(others, subject, needle, 'outgoing'),
+    [others, subject, needle],
+  );
+
+  const visibleIncoming = useMemo(
+    () => filterOthers(others, subject, needle, 'incoming'),
+    [others, subject, needle],
+  );
 
   const defaults = subject.nicknameDefaults;
   const canAddDefault = defaults.length < MAX_NICKNAME_OPTIONS;
 
   return (
     <section className="nicknames-panel">
+      <input
+        type="search"
+        className="filter-input filter-input-sm nicknames-panel-filter"
+        placeholder="Filter islanders…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        aria-label="Filter nickname lists"
+      />
+
       <details className="nicknames-collapsible" open={outgoingOpen}>
         <CollapsibleSummary
           open={outgoingOpen}
@@ -250,20 +290,11 @@ export function NicknamePanel({
             </button>
           </div>
 
-          <input
-            type="search"
-            className="filter-input filter-input-sm"
-            placeholder="Filter islanders…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter characters"
-          />
-
           <ul className="nickname-mini-grid">
-            {visible.length === 0 ? (
+            {visibleOutgoing.length === 0 ? (
               <li className="empty-hint">No matches.</li>
             ) : (
-              visible.slice(0, MAX_VISIBLE).map((target) => {
+              visibleOutgoing.slice(0, MAX_VISIBLE).map((target) => {
                 const options = subject.nicknames[target.id] ?? [];
                 const canAdd = options.length < MAX_NICKNAME_OPTIONS;
                 return (
@@ -304,33 +335,37 @@ export function NicknamePanel({
         </CollapsibleSummary>
         <div className="nicknames-collapsible-body">
           <ul className="nickname-mini-grid">
-            {others.map((speaker) => {
-              const options = speaker.nicknames[subject.id] ?? [];
-              const canAdd = options.length < MAX_NICKNAME_OPTIONS;
-              return (
-                <NicknameMiniCard
-                  key={speaker.id}
-                  character={speaker}
-                  values={options}
-                  canAdd={canAdd}
-                  aiBusy={generatingKey === `nick:in:${speaker.id}`}
-                  hasApiKey={hasApiKey}
-                  onOpenCharacter={onOpenCharacter}
-                  onAdd={() => onAddIncoming(speaker.id)}
-                  onUpdateAt={(i, v) =>
-                    onUpdateIncomingAt(speaker.id, i, v)
-                  }
-                  onRemoveAt={(i) => onRemoveIncoming(speaker.id, i)}
-                  onGenerate={
-                    onGenerateIncoming
-                      ? () => onGenerateIncoming(speaker.id)
-                      : undefined
-                  }
-                  generateTitle={`Generate how ${speaker.name} calls ${subject.name}`}
-                  ariaLabel={`${speaker.name} calls ${subject.name}`}
-                />
-              );
-            })}
+            {visibleIncoming.length === 0 ? (
+              <li className="empty-hint">No matches.</li>
+            ) : (
+              visibleIncoming.slice(0, MAX_VISIBLE).map((speaker) => {
+                const options = speaker.nicknames[subject.id] ?? [];
+                const canAdd = options.length < MAX_NICKNAME_OPTIONS;
+                return (
+                  <NicknameMiniCard
+                    key={speaker.id}
+                    character={speaker}
+                    values={options}
+                    canAdd={canAdd}
+                    aiBusy={generatingKey === `nick:in:${speaker.id}`}
+                    hasApiKey={hasApiKey}
+                    onOpenCharacter={onOpenCharacter}
+                    onAdd={() => onAddIncoming(speaker.id)}
+                    onUpdateAt={(i, v) =>
+                      onUpdateIncomingAt(speaker.id, i, v)
+                    }
+                    onRemoveAt={(i) => onRemoveIncoming(speaker.id, i)}
+                    onGenerate={
+                      onGenerateIncoming
+                        ? () => onGenerateIncoming(speaker.id)
+                        : undefined
+                    }
+                    generateTitle={`Generate how ${speaker.name} calls ${subject.name}`}
+                    ariaLabel={`${speaker.name} calls ${subject.name}`}
+                  />
+                );
+              })
+            )}
           </ul>
         </div>
       </details>

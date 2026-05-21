@@ -23,10 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local secrets & personal seed data (not published)
+# Local secrets
 .env
 .env.*
 !.env.example
+
+# Legacy local bootstrap files (deprecated; not used by the app)
 public/seed.md
 public/nicknames-seed.json
 

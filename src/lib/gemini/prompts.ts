@@ -44,27 +44,36 @@ export function buildFullCharacterPrompt(
   const island = buildIslandSnapshot(characters);
   const targets = characters.map((c) => c.name).join(', ');
 
+  const hasCast = characters.length > 0;
+
   return `You are writing spoken dialogue lines for a custom island cast in a life-simulation style game.
 
 NEW CHARACTER: "${newName}"
 
-EXISTING CAST (voice reference — match tone and humor):
-${island || '(empty cast)'}
+CANON FIRST (required):
+- Base "${newName}" entirely on their source canon — personality, speech patterns, famous lines, and relationships from their original series, game, or work.
+- Dialogue and nicknames must sound like THIS character before any island-style humor or game parody.
+- Light island flavor is optional seasoning only; never rewrite them into a generic villager voice.
 
-EXISTING NAMES (for nicknames): ${targets || '(none)'}
+EXISTING CAST (voice reference — match tone when present):
+${island || '(empty island — first character)'}
+
+EXISTING NAMES (for nicknames): ${targets || '(none — use empty objects below)'}
 
 Phrase types (exact JSON keys):
 ${PHRASE_TYPE_LIST}
 
 Rules:
 - Each phrase is short (under ~80 chars), spoken aloud, fits a simple dialogue UI.
-- Stay faithful to the source character "${newName}" (personality, memes, catchphrases).
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (can start with punctuation).
 - "Loud shout" = ALL CAPS energy.
 - Provide exactly 3 distinct options per phrase type (triplets).
-- nicknameDefault: exactly 3 default nicknames for strangers / new acquaintances.
-- byTargetName: for EACH existing cast member listed, 3 nickname options THIS character would use.
-- incoming.bySpeakerName: for EACH existing cast member, 3 nickname options THEY would use for "${newName}".
+- nicknameDefault: exactly 3 default nicknames for strangers / new acquaintances (canon-appropriate).
+${hasCast
+    ? `- byTargetName: for EACH existing cast member listed, 3 nickname options "${newName}" would use (canon-aware).
+- incoming.bySpeakerName: for EACH existing cast member, 3 nickname options THEY would use for "${newName}" (canon-aware).`
+    : `- byTargetName: use {} (no other islanders yet).
+- incoming.bySpeakerName: use {} (no other islanders yet).`}
 
 Return ONLY valid JSON:
 {

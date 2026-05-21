@@ -1469,7 +1469,40 @@ img.avatar {
   }
 }
 
-/* Sync banner */
+/* Sync toast (fixed — no layout shift) */
+.sync-toast {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: min(24rem, calc(100vw - 1.5rem));
+  padding: 0.55rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  background: var(--surface);
+}
+
+.sync-toast-error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.sync-toast-local {
+  background: var(--banner-local-bg);
+}
+
+.nicknames-panel-filter {
+  width: 100%;
+  margin-bottom: 0.65rem;
+}
+
+/* Legacy sync banner (unused) */
 .sync-banner {
   flex-shrink: 0;
   display: flex;

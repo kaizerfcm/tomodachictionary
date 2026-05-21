@@ -41,27 +41,3 @@ export function saveToStorage(data: DictionaryData): void {
 export function clearStorage(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
-
-export async function areSeedsAvailable(): Promise<boolean> {
-  try {
-    const [md, nick] = await Promise.all([
-      fetch('/seed.md', { method: 'HEAD' }),
-      fetch('/nicknames-seed.json', { method: 'HEAD' }),
-    ]);
-    return md.ok && nick.ok;
-  } catch {
-    return false;
-  }
-}
-
-export async function fetchSeedMarkdown(): Promise<string | null> {
-  const res = await fetch('/seed.md');
-  if (!res.ok) return null;
-  return res.text();
-}
-
-export async function fetchNicknameSeed(): Promise<string | null> {
-  const res = await fetch('/nicknames-seed.json');
-  if (!res.ok) return null;
-  return res.text();
-}

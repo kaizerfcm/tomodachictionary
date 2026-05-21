@@ -533,10 +533,10 @@ img.avatar {
   gap: 0.35rem;
 }
 
-.btn-ai {
+.btn-ai,
+.btn-community {
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--accent);
   border-radius: 4px;
   width: 1.5rem;
   height: 1.5rem;
@@ -547,6 +547,26 @@ img.avatar {
   flex-shrink: 0;
 }
 
+.btn-ai {
+  color: var(--accent);
+}
+
+.btn-community {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.btn-community:hover:not(:disabled) {
+  background: var(--selected-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-community:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-ai:hover:not(:disabled) {
   background: var(--selected-bg);
   border-color: var(--accent);
@@ -555,6 +575,39 @@ img.avatar {
 .btn-ai:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.modal-hint {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.community-phrase-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.community-phrase-pick {
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.community-phrase-pick:hover {
+  border-color: var(--accent);
+  background: var(--selected-bg);
 }
 
 .btn-xs {

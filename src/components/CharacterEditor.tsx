@@ -33,6 +33,7 @@ interface CharacterEditorProps {
   onGenerateOutgoingNickname: (targetId: string) => void;
   onGenerateIncomingNickname: (speakerId: string) => void;
   onOpenCharacter: (id: string) => void;
+  communityPhrasesEnabled?: boolean;
   outgoingNickOpen: boolean;
   incomingNickOpen: boolean;
   onOutgoingNickOpenChange: (open: boolean) => void;
@@ -70,6 +71,7 @@ export function CharacterEditor({
   incomingNickOpen,
   onOutgoingNickOpenChange,
   onIncomingNickOpenChange,
+  communityPhrasesEnabled,
 }: CharacterEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -147,6 +149,8 @@ export function CharacterEditor({
         </p>
       )}
       <PhraseEditor
+        characterName={character.name}
+        communityEnabled={communityPhrasesEnabled}
         phrases={character.phrases}
         onUpdatePhrase={onUpdatePhrase}
         onAddPhrase={onAddPhrase}

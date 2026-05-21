@@ -43,6 +43,7 @@ import { formatAccountLabel } from './lib/authEmail';
 import { getPaymentConfig } from './lib/paymentConfig';
 import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
+import { canUseCommunityPhrases } from './lib/communityPhrases';
 
 type View = 'main' | 'config' | 'tos' | 'removeAds';
 
@@ -115,6 +116,7 @@ export function AppMain({
   const accountEmail = userEmail ? formatAccountLabel(userEmail) : undefined;
   const payment = getPaymentConfig();
   const signedIn = storageMode === 'cloud' && Boolean(userId);
+  const communityPhrasesEnabled = canUseCommunityPhrases(signedIn);
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
@@ -440,6 +442,7 @@ export function AppMain({
               onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
               onGenerateIncomingNickname={handleGenerateIncomingNickname}
               onOpenCharacter={setSelectedId}
+              communityPhrasesEnabled={communityPhrasesEnabled}
               outgoingNickOpen={outgoingNickOpen}
               incomingNickOpen={incomingNickOpen}
               onOutgoingNickOpenChange={handleOutgoingNickOpenChange}

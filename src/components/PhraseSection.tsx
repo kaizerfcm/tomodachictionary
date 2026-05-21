@@ -1,12 +1,17 @@
 import { MAX_PHRASES_PER_TYPE } from '../constants';
 import { PHRASE_TYPES, type PhraseType } from '../types';
 import { AiSparkButton } from './AiSparkButton';
+import { CommunityPhrasesButton } from './CommunityPhrasesButton';
 
 interface PhraseSectionProps {
   label: string;
+  phraseType: PhraseType;
+  characterName: string;
+  communityEnabled?: boolean;
   phrases: string[];
   onUpdate: (index: number, text: string) => void;
   onAdd: () => void;
+  onAddText?: (text: string) => void;
   onRemove: (index: number) => void;
   hasApiKey?: boolean;
   aiBusy?: boolean;
@@ -15,32 +20,49 @@ interface PhraseSectionProps {
 
 export function PhraseSection({
   label,
+  phraseType,
+  characterName,
+  communityEnabled,
   phrases,
   onUpdate,
   onAdd,
+  onAddText,
   onRemove,
   hasApiKey,
   aiBusy,
   onGenerateAi,
 }: PhraseSectionProps) {
   const atLimit = phrases.length >= MAX_PHRASES_PER_TYPE;
+  const showActions = communityEnabled || (hasApiKey && onGenerateAi);
 
   return (
     <details className="phrase-section" open={phrases.length > 0}>
       <summary className="phrase-section-summary">
         <span>{label}</span>
-        {hasApiKey && onGenerateAi && (
+        {showActions && (
           <span className="phrase-section-actions">
-            <AiSparkButton
-              busy={aiBusy}
-              disabled={atLimit}
-              title={
-                atLimit
-                  ? 'Phrase limit reached'
-                  : `Generate one ${label.toLowerCase()} line`
-              }
-              onClick={onGenerateAi}
-            />
+            {communityEnabled && onAddText && (
+              <CommunityPhrasesButton
+                characterName={characterName}
+                phraseType={phraseType}
+                phraseLabel={label}
+                existingPhrases={phrases}
+                disabled={atLimit}
+                onAddPhrase={onAddText}
+              />
+            )}
+            {hasApiKey && onGenerateAi && (
+              <AiSparkButton
+                busy={aiBusy}
+                disabled={atLimit}
+                title={
+                  atLimit
+                    ? 'Phrase limit reached'
+                    : `Generate one ${label.toLowerCase()} line`
+                }
+                onClick={onGenerateAi}
+              />
+            )}
           </span>
         )}
       </summary>
@@ -79,6 +101,8 @@ export function PhraseSection({
 }
 
 export function PhraseEditor({
+  characterName,
+  communityEnabled,
   phrases,
   onUpdatePhrase,
   onAddPhrase,
@@ -87,9 +111,11 @@ export function PhraseEditor({
   generatingKey,
   onGeneratePhrase,
 }: {
+  characterName: string;
+  communityEnabled?: boolean;
   phrases: Record<PhraseType, string[]>;
   onUpdatePhrase: (type: PhraseType, index: number, text: string) => void;
-  onAddPhrase: (type: PhraseType) => void;
+  onAddPhrase: (type: PhraseType, text?: string) => void;
   onRemovePhrase: (type: PhraseType, index: number) => void;
   hasApiKey?: boolean;
   generatingKey?: string | null;
@@ -101,9 +127,13 @@ export function PhraseEditor({
         <PhraseSection
           key={key}
           label={label}
+          phraseType={key}
+          characterName={characterName}
+          communityEnabled={communityEnabled}
           phrases={phrases[key]}
           onUpdate={(index, text) => onUpdatePhrase(key, index, text)}
           onAdd={() => onAddPhrase(key)}
+          onAddText={(text) => onAddPhrase(key, text)}
           onRemove={(index) => onRemovePhrase(key, index)}
           hasApiKey={hasApiKey}
           aiBusy={generatingKey === `phrase:${key}`}

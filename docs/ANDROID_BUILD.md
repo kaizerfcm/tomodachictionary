@@ -1,180 +1,112 @@
-# Android APK build guide (Tomodict)
+# Android build (Tomodict)
 
-This document is for an agent or developer packaging the **current React/Vite app** as an Android APK with **Google Play in-app purchase** for ad removal. Feature parity with web except:
+Guide for packaging the app as an APK/AAB with **Google Play** ad removal (no Stripe, no free remove-ads link on Android).
 
-- **No** “Remove ads without paying” link (`VITE_ALLOW_FREE_AD_REMOVAL=false`).
-- **No** Stripe checkout in the APK (`VITE_PLATFORM=android`).
-- Ads removed only after **Google Play** purchase (or restore), persisted to `user_profiles.ads_removed` when signed in.
+## Status
+
+| Done | Pending |
+|------|---------|
+| Capacitor project (`android/`, `capacitor.config.ts`) | **Play Billing bridge** (`window.TomodictBilling`) |
+| `npm run build:android` / `cap:sync` / `cap:open` | Play Console product `remove_ads` |
+| Platform flags (`VITE_PLATFORM=android`) | Signed release AAB |
 
 ## Prerequisites
 
 - Node.js 20+
 - Android Studio (SDK 34+, JDK 17)
-- Google Play Console developer account
-- Supabase project (same as web): `schema.sql` + `user_profiles.sql`
-- Optional: Gemini API key still entered in-app (local storage)
+- Google Play Console account
+- Same Supabase project as web (`schema.sql`, `user_profiles.sql`)
 
-## 1. Install dependencies
-
-From repo root:
+## 1. Install & env
 
 ```bash
 npm install
-npm install @capacitor/core @capacitor/android @capacitor/app
-npm install -D @capacitor/cli
 ```
 
-## 2. Environment for Android builds
-
-Use `.env.android` (or merge into `.env.android.local`):
+Create `.env.android.local` (or use `.env.android` as a template):
 
 ```
 VITE_PLATFORM=android
 VITE_ALLOW_FREE_AD_REMOVAL=false
 VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
-# Leave VITE_PAYMENT_URL_INTL empty — Play billing only
 ```
 
-Build:
+Do not set `VITE_PAYMENT_URL_INTL` on Android builds.
 
-```bash
-npm run build:android
-```
-
-This runs tests, then `vite build --mode android` with `base: './'` for Capacitor.
-
-## 3. Initialize Capacitor Android (first time only)
-
-```bash
-npx cap add android
-npx cap sync android
-```
-
-`capacitor.config.ts` is already present:
-
-- `appId`: `app.tomodict.editor`
-- `appName`: `Tomodict`
-- `webDir`: `dist`
-
-After each web build:
+## 2. Build web assets & sync
 
 ```bash
 npm run cap:sync
 ```
 
-Open Android Studio:
+Runs tests, `vite build --mode android` (`base: './'`), then copies into `android/`.
+
+Open in Android Studio:
 
 ```bash
 npm run cap:open
 ```
 
-## 4. Google Play product
+**First time only** (if `android/` is missing):
 
-1. Play Console → your app → **Monetize → Products → In-app products** (or **One-time products**).
-2. Create non-consumable product ID: **`remove_ads`** (must match `PLAY_PRODUCT_REMOVE_ADS` in `src/lib/googlePlay.ts`).
-3. Set price (e.g. tier close to $5 USD).
-4. Activate product.
+```bash
+npx cap add android
+npm run cap:sync
+```
 
-## 5. Native billing bridge (required work)
+## 3. Google Play product
 
-The web layer calls:
+1. Play Console → **Monetize → In-app products** (one-time / non-consumable).
+2. Product ID: **`remove_ads`** (must match `PLAY_PRODUCT_REMOVE_ADS` in `src/lib/googlePlay.ts`).
+3. Activate and set price.
+
+## 4. Native billing (required)
+
+The UI calls:
 
 ```ts
-window.TomodictBilling.purchaseRemoveAds()
-window.TomodictBilling.restorePurchases()
+window.TomodictBilling.purchaseRemoveAds()  // → Promise<boolean>
+window.TomodictBilling.restorePurchases()   // → Promise<boolean>
 ```
 
-Implement these in Android (choose one approach):
+Implement with **Google Play Billing Library 6+** via a small Capacitor plugin (recommended) or a vetted community plugin mapped to the same API.
 
-### Option A — Custom Capacitor plugin (recommended)
+On success, the app calls `confirmPlayPurchase()` → `user_profiles.ads_removed` in Supabase (user must be signed in).
 
-1. Create a small Capacitor plugin `TomodictBilling` in the Android project.
-2. Use **Google Play Billing Library 6+** (`BillingClient`).
-3. On successful purchase of `remove_ads`:
-   - Acknowledge purchase.
-   - Resolve JS promise with `true`.
-4. App calls `confirmPlayPurchase()` → sets `user_profiles.ads_removed` via existing Supabase client (user must be signed in).
+References: `src/lib/googlePlay.ts`, `src/components/RemoveAdsPage.tsx`, `android/app/src/main/java/app/tomodict/editor/MainActivity.java`.
 
-### Option B — Community plugin
+## 5. Release build
 
-Evaluate `@capacitor-community/in-app-purchases` or similar; map product `remove_ads` to the same JS bridge shape above.
+Android Studio → **Build → Generate Signed Bundle / APK** → prefer **AAB** for Play Store.
 
-### Register bridge in WebView
+Bump `versionCode` / `versionName` in `android/app/build.gradle`.
 
-In `MainActivity` (or plugin), expose:
+## 6. Test checklist
 
-```java
-// Pseudocode — inject into WebView as TomodictBilling
-@JavascriptInterface
-public void purchaseRemoveAds() { ... }
+- [ ] Email sign-in (Supabase: confirm email **off**)
+- [ ] Grid, editor, JSON import/export, avatars, Gemini key in Configuration
+- [ ] Ads on home when `ads_removed` is false
+- [ ] Remove ads: **Buy** + **Restore** only (no Stripe / no free link)
+- [ ] Purchase persists after restart when signed in
 
-@JavascriptInterface  
-public void restorePurchases() { ... }
-```
-
-Or use Capacitor’s `registerPlugin` pattern so `window.TomodictBilling` is set on load.
-
-Reference: `src/lib/googlePlay.ts`, `src/components/RemoveAdsPage.tsx`.
-
-## 6. Signing & APK / AAB
-
-In Android Studio:
-
-1. **Build → Generate Signed Bundle / APK** → **Android App Bundle** (.aab) for Play Store.
-2. Or APK for sideload testing.
-
-Set `versionCode` / `versionName` in `android/app/build.gradle`.
-
-## 7. Network / WebView
-
-- Supabase and Gemini need **INTERNET** permission (Capacitor default).
-- If using cleartext dev servers, adjust `android:usesCleartextTraffic` (not for production).
-
-## 8. Testing checklist
-
-- [ ] Sign up / sign in with email (Supabase, confirm email OFF).
-- [ ] Island grid, editor, import/export JSON, avatars, AI (with API key).
-- [ ] Ad strip visible on home grid when `ads_removed` is false.
-- [ ] Remove ads screen shows **Buy (Google Play)** and **Restore** only — **no** free link.
-- [ ] Purchase removes ads and persists after app restart (cloud account).
-- [ ] Restore purchases works on reinstall.
-
-## 9. Play Console compliance
-
-- Privacy policy URL (can point to deployed Terms page).
-- Declare billing permission.
-- Target API level per Play requirements (update yearly).
-
-## 10. Scripts reference
-
-| Script | Purpose |
-|--------|---------|
-| `npm run build:android` | Production web bundle for Capacitor |
-| `npm run cap:sync` | Build + copy into `android/` |
-| `npm run cap:open` | Open Android Studio |
-
-## 11. What not to ship in Android
-
-- `public/pix-qr.png` (removed from web; not used).
-- Stripe “I paid” flows.
-- `VITE_ALLOW_FREE_AD_REMOVAL=true`.
-
-## 12. Troubleshooting
+## 7. Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
-| White screen on launch | Wrong `base` — must build with `--mode android` |
-| Billing button errors | `TomodictBilling` not injected — finish §5 |
-| Ads never disappear after purchase | User not signed in, or `setAdsRemoved` not called after purchase |
-| Supabase auth fails | Check `VITE_SUPABASE_*` baked into build |
+| White screen | Build with `--mode android`, then `cap:sync` |
+| Billing errors | Finish §4 — bridge not wired |
+| Ads stay after purchase | Sign in; check `confirmPlayPurchase` + `user_profiles` |
+| Auth fails | Rebuild with correct `VITE_SUPABASE_*` |
 
-## File map
+## Scripts
 
-| Area | Path |
-|------|------|
-| Platform flags | `src/lib/platform.ts` |
-| Play billing API | `src/lib/googlePlay.ts` |
-| Remove ads UI | `src/components/RemoveAdsPage.tsx` |
-| Profile flag | `supabase/user_profiles.sql` |
-| Capacitor config | `capacitor.config.ts` |
+| Command | Purpose |
+|---------|---------|
+| `npm run build:android` | Android web bundle only |
+| `npm run cap:sync` | Build + sync to `android/` |
+| `npm run cap:open` | Android Studio |
+
+## Web-only (not in APK)
+
+Stripe checkout, free remove-ads link, community phrases Edge Function (optional; needs `community_phrases.sql` + deploy on Supabase).

@@ -6,6 +6,9 @@ const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
 ).join('\n');
 
+const ENGLISH_PHRASE_RULES = `- All phrase dialogue must be in English only (Latin script).
+- If the character normally speaks another language in canon, translate or localize into natural English that preserves meaning, tone, and famous-line feel — do not output non-English phrase text.`;
+
 function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const { key } of PHRASE_TYPES) {
@@ -64,6 +67,7 @@ Phrase types (exact JSON keys):
 ${PHRASE_TYPE_LIST}
 
 Rules:
+${ENGLISH_PHRASE_RULES}
 - Each phrase is short (under ~80 chars), spoken aloud, fits a simple dialogue UI.
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (can start with punctuation).
 - "Loud shout" = ALL CAPS energy.
@@ -119,7 +123,9 @@ ${buildIslandSnapshot(allCharacters, character.id)}
 EXISTING lines for this type (do NOT duplicate):
 ${JSON.stringify(existing)}
 
-Rules: under ~80 chars, spoken aloud, in-character. "shoutAtSea" = ALL CAPS.
+Rules:
+${ENGLISH_PHRASE_RULES}
+- Under ~80 chars, spoken aloud, in-character. "shoutAtSea" = ALL CAPS.
 
 Return ONLY valid JSON: { "line": "your new line here" }`;
 }

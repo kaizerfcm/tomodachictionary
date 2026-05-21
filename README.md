@@ -19,9 +19,13 @@ npm test
 
 | Feature | Setup |
 |--------|--------|
-| Cloud sync | `VITE_SUPABASE_*` + run `supabase/schema.sql` and `supabase/user_profiles.sql` |
-| Web payments | `VITE_PAYMENT_URL_INTL` + Stripe webhook — [docs/MONETIZATION.md](docs/MONETIZATION.md) |
+| Cloud sync | `VITE_SUPABASE_*` on Vercel (Supabase integration or manual) + `supabase/schema.sql` + `user_profiles.sql` |
+| Web payments | `VITE_PAYMENT_URL_INTL` + deploy `stripe-webhook` — [docs/MONETIZATION.md](docs/MONETIZATION.md) |
 | Android APK | [docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md) |
+
+```bash
+npm run supabase:deploy-webhook   # after secrets are set in Supabase
+```
 
 Supabase Auth: **Email ON**, **Confirm email OFF**.
 

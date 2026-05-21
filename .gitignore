@@ -29,3 +29,9 @@ dist-ssr
 !.env.example
 public/seed.md
 public/nicknames-seed.json
+
+# Supabase CLI local state
+supabase/.temp/
+
+# Cursor IDE
+.cursor/

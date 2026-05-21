@@ -1,19 +1,28 @@
 /**
  * Stripe webhook: sets ads_removed when checkout completes.
- * Deploy: supabase functions deploy stripe-webhook --no-verify-jwt
+ * Deploy: npm run supabase:deploy-webhook
  * Secrets: STRIPE_WEBHOOK_SECRET, SUPABASE_SERVICE_ROLE_KEY
  *
- * In Stripe Dashboard → Webhooks → add endpoint URL:
+ * Stripe Dashboard → Webhooks → endpoint:
  * https://<project-ref>.supabase.co/functions/v1/stripe-webhook
- * Events: checkout.session.completed
+ * Event: checkout.session.completed
  *
- * Users must sign in with the same email used at Stripe checkout.
+ * Checkout email must match the user's Supabase Auth email.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const stripeSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+/** Stripe `whsec_…` values must be base64-decoded before HMAC. */
+function stripeWebhookKeyBytes(secret: string): Uint8Array {
+  const encoded = secret.startsWith('whsec_') ? secret.slice(6) : secret;
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 async function verifyStripeSignature(
   body: string,
@@ -27,14 +36,14 @@ async function verifyStripeSignature(
 
   const key = await crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(stripeSecret),
+    stripeWebhookKeyBytes(stripeSecret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
   );
   const payload = `${t}.${body}`;
   const sig = await crypto.subtle.sign(
-    'key',
+    'HMAC',
     key,
     new TextEncoder().encode(payload),
   );
@@ -52,6 +61,11 @@ async function verifyStripeSignature(
   return v1.some((v) => timingSafeEqual(v, expected));
 }
 
+type CheckoutSession = {
+  customer_details?: { email?: string | null };
+  customer_email?: string | null;
+};
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -67,13 +81,18 @@ Deno.serve(async (req) => {
     return new Response('Invalid signature', { status: 400 });
   }
 
-  const event = JSON.parse(body) as {
-    type?: string;
-    data?: { object?: { customer_details?: { email?: string }; customer_email?: string } };
-  };
+  let event: { type?: string; data?: { object?: CheckoutSession } };
+  try {
+    event = JSON.parse(body);
+  } catch {
+    return new Response('Invalid JSON', { status: 400 });
+  }
 
   if (event.type !== 'checkout.session.completed') {
-    return new Response(JSON.stringify({ received: true }), { status: 200 });
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const session = event.data?.object;
@@ -88,6 +107,7 @@ Deno.serve(async (req) => {
   if (!email) {
     return new Response(JSON.stringify({ ok: false, reason: 'no email' }), {
       status: 200,
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
@@ -95,19 +115,20 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data: userData, error: userError } =
+  const { data: userLookup, error: userError } =
     await supabase.auth.admin.getUserByEmail(email);
 
-  if (userError || !userData?.user) {
+  const user = userLookup?.user;
+  if (userError || !user) {
     return new Response(
       JSON.stringify({ ok: false, reason: 'no matching account' }),
-      { status: 200 },
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   }
 
   const { error: upsertError } = await supabase.from('user_profiles').upsert(
     {
-      user_id: userData.user.id,
+      user_id: user.id,
       ads_removed: true,
       updated_at: new Date().toISOString(),
     },
@@ -118,7 +139,7 @@ Deno.serve(async (req) => {
     return new Response(upsertError.message, { status: 500 });
   }
 
-  return new Response(JSON.stringify({ ok: true, user_id: userData.user.id }), {
+  return new Response(JSON.stringify({ ok: true, user_id: user.id }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

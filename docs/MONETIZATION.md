@@ -1,71 +1,110 @@
 # Monetization (Tomodict web)
 
-## User flow (minimal clicks)
+## User flow
 
-1. Home screen → **Pay to remove ads** → Stripe checkout (your donate link).
+1. Home → **Pay to remove ads** → Stripe checkout (donate link).
 2. User pays with the **same email** as their Tomodict account.
 3. Stripe webhook sets `user_profiles.ads_removed = true`.
-4. User returns to the app → ads disappear (auto-refresh on window focus).
+4. User returns to the app → ads disappear (profile refreshes on window focus).
 
-Optional: **Remove ads without paying** (web only, env `VITE_ALLOW_FREE_AD_REMOVAL=true`).
+Optional: **Remove ads without paying** (web only, `VITE_ALLOW_FREE_AD_REMOVAL=true`).
 
-There is **no** “I paid” honor button and **no** PIX QR on web.
+No honor-system “I paid” button and no PIX QR on web.
 
-## 1. Stripe donate / payment link
+## Vercel environment variables
 
-Default URL (also in code fallback):
+Set in Vercel (or sync via **Vercel ↔ Supabase integration**):
 
-`https://donate.stripe.com/28E8wQ3M29A2aC82hnbjW00`
+| Variable | Purpose |
+|----------|---------|
+| `VITE_SUPABASE_URL` | Cloud sync + auth |
+| `VITE_SUPABASE_ANON_KEY` | Browser client (public) |
+| `VITE_PAYMENT_URL_INTL` | Stripe donate / payment link |
+| `VITE_ALLOW_FREE_AD_REMOVAL` | `true` to show free remove-ads link |
 
-Vercel env:
+Example:
 
 ```
 VITE_PAYMENT_URL_INTL=https://donate.stripe.com/28E8wQ3M29A2aC82hnbjW00
 VITE_ALLOW_FREE_AD_REMOVAL=true
 ```
 
-## 2. Stripe webhook (required for paid ad removal)
+The Vercel–Supabase integration is helpful: it keeps `VITE_SUPABASE_*` aligned with your project. It does **not** deploy Edge Functions or set Stripe secrets — those stay in Supabase.
+
+**Never** put `SUPABASE_SERVICE_ROLE_KEY` or `STRIPE_WEBHOOK_SECRET` in Vercel (frontend). Only in Supabase function secrets.
+
+## Stripe payment link
+
+Default URL (also in code fallback):
+
+`https://donate.stripe.com/28E8wQ3M29A2aC82hnbjW00`
+
+Ensure the link collects the payer **email** so the webhook can match accounts.
+
+## Stripe webhook (required for paid ad removal)
 
 Without the webhook, paying does **not** remove ads automatically.
 
-### Supabase
-
-1. Run `supabase/user_profiles.sql` if not done.
-2. Deploy function:
+### Supabase secrets
 
 ```bash
-supabase login
-supabase link --project-ref YOUR_REF
 supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=eyJ...service_role...
-supabase functions deploy stripe-webhook --no-verify-jwt
 ```
 
-`SUPABASE_URL` is provided automatically in Edge Functions.
+`SUPABASE_URL` is injected automatically in Edge Functions.
+
+### Deploy function
+
+```bash
+npm run supabase:deploy-webhook
+```
+
+Or:
+
+```bash
+supabase functions deploy stripe-webhook --no-verify-jwt
+```
 
 ### Stripe Dashboard
 
 1. **Developers → Webhooks → Add endpoint**
 2. URL: `https://YOUR_REF.supabase.co/functions/v1/stripe-webhook`
 3. Event: `checkout.session.completed`
-4. Copy **Signing secret** → `STRIPE_WEBHOOK_SECRET`
+4. Signing secret → `STRIPE_WEBHOOK_SECRET`
 
-### Matching accounts
+### Verify webhook
 
-Checkout email must match the user’s **Supabase Auth email**. Tell users to sign in with that email before or after paying.
+In Stripe → Webhooks → your endpoint → **Send test event** (`checkout.session.completed`). Expect HTTP **200**. Check Supabase → Edge Functions → Logs if it fails.
 
-## 3. Supabase Auth
+For a real test:
+
+1. Create a Tomodict account with email `you@example.com`.
+2. Pay via the donate link using the **same** email.
+3. Return to the app and focus the tab — ads should hide.
+
+If signature verification fails (400), redeploy after updating the function and confirm the secret matches the endpoint’s signing secret.
+
+## Supabase Auth
 
 - Email provider **ON**
 - **Confirm email** **OFF**
 
-## 4. Android
+## Database
 
-See **`docs/ANDROID_BUILD.md`**. Android uses **Google Play** billing only — no Stripe link, no free remove-ads link.
+Run in SQL Editor if not already applied:
 
-## Checklist
+- `supabase/schema.sql` — island data
+- `supabase/user_profiles.sql` — `ads_removed` flag
 
-- [ ] `VITE_PAYMENT_URL_INTL` on Vercel
-- [ ] Webhook deployed + secret set
+## Android
+
+See **`docs/ANDROID_BUILD.md`**. Play billing only — no Stripe link on APK.
+
+## Production checklist
+
+- [x] `VITE_PAYMENT_URL_INTL` on Vercel
+- [x] `VITE_SUPABASE_*` on Vercel (integration or manual)
+- [x] Webhook deployed + secrets set
 - [ ] Test payment with signed-in account email
 - [ ] Ads hidden after return (focus tab or refresh)

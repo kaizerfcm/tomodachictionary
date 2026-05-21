@@ -126,11 +126,18 @@ export function AppMain({
 
   useEffect(() => {
     if (!showAdBanner) return;
-    const onFocus = () => {
+    const onVisible = () => {
       void refreshProfile();
     };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onVisible();
+    };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [showAdBanner, refreshProfile]);
 
   const handleGridSortChange = (sort: GridSort) => {

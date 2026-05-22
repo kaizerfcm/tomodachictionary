@@ -27,6 +27,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.android.example
 
 # Legacy local bootstrap files (deprecated; not used by the app)
 public/seed.md

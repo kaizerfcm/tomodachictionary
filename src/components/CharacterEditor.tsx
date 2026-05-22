@@ -29,7 +29,7 @@ interface CharacterEditorProps {
   onRemoveIncoming: (speakerId: string, index: number) => void;
   onGeneratePhrase: (type: PhraseType) => void;
   onGenerateDefaultNickname: () => void;
-  onGenerateOutgoingNickname: (targetId: string) => void;
+  onGenerateMissingNicknames: () => void;
   onOpenCharacter: (id: string) => void;
   nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
@@ -60,7 +60,7 @@ export function CharacterEditor({
   onRemoveIncoming,
   onGeneratePhrase,
   onGenerateDefaultNickname,
-  onGenerateOutgoingNickname,
+  onGenerateMissingNicknames,
   onOpenCharacter,
   nicknameFocusCharacterId,
   islandersNickOpen,
@@ -171,7 +171,7 @@ export function CharacterEditor({
         hasApiKey={hasApiKey}
         generatingKey={generatingKey}
         onGenerateDefault={onGenerateDefaultNickname}
-        onGenerateOutgoing={onGenerateOutgoingNickname}
+        onGenerateMissing={onGenerateMissingNicknames}
       />
     </main>
   );

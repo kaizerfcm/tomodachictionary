@@ -25,3 +25,8 @@ export interface NicknameRegeneration {
   byTargetName: Record<string, Triplet>;
   incoming: GeneratedIncomingNicknames;
 }
+
+export interface GeneratedMissingNicknames {
+  outgoing: Record<string, string>;
+  incoming: Record<string, string>;
+}

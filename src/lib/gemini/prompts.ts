@@ -1,6 +1,7 @@
 import { MAX_SHORT_TEXT_LENGTH } from '../../constants';
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
+import type { MissingNicknamePairs } from '../missingNicknames';
 import { getEffectiveNickname } from '../nicknames';
 import { isShortPhraseType } from '../textLimits';
 
@@ -169,5 +170,44 @@ EXISTING nicknames for ${target.name} (do NOT duplicate):
 ${JSON.stringify(existing.length ? existing : [getEffectiveNickname(character, target)])}
 
 Return ONLY valid JSON: { "nickname": "one nickname" }`;
+}
+
+export function buildMissingIslandNicknamesPrompt(
+  subject: Character,
+  allCharacters: Character[],
+  missing: MissingNicknamePairs,
+): string {
+  const outgoingNames = missing.missingOutgoing.map((c) => c.name);
+  const incomingNames = missing.missingIncoming.map((c) => c.name);
+
+  return `You are writing nicknames for a custom island cast in a life-simulation style game.
+
+SUBJECT (profile being edited): "${subject.name}"
+
+CANON FIRST: nicknames must fit each character's source canon voice and relationship to "${subject.name}".
+
+Cast context:
+${buildIslandSnapshot(allCharacters, subject.id)}
+
+Generate exactly ONE nickname per name below. Use the exact islander names as JSON keys.
+
+OUTGOING — nicknames "${subject.name}" would use to address each islander (only these names):
+${outgoingNames.length ? outgoingNames.join(', ') : '(none — use {})'}
+
+INCOMING — nicknames each islander would use for "${subject.name}" (only these names):
+${incomingNames.length ? incomingNames.join(', ') : '(none — use {})'}
+
+Rules:
+- Outgoing nicknames: at most ${MAX_SHORT_TEXT_LENGTH} characters each.
+- Incoming nicknames: short and in-character (no strict length).
+- English only (Latin script); localize from canon if needed.
+- Do not duplicate existing nicknames already on the island.
+- Include ONLY keys listed above; omit everyone else.
+
+Return ONLY valid JSON:
+{
+  "outgoing": { "Islander Name": "nickname" },
+  "incoming": { "Islander Name": "nickname" }
+}`;
 }
 

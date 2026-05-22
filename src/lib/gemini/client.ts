@@ -1,4 +1,5 @@
 import { PHRASE_TYPES, type PhraseType } from '../../types';
+import type { GeneratedMissingNicknames } from './types';
 import {
   applyShortTextLimitsToGeneration,
   clampOutgoingNickname,
@@ -157,4 +158,29 @@ export async function generateOneNickname(
   const raw = parseJson<Record<string, unknown>>(await callGemini(apiKey, prompt));
   const nick = assertLine(raw, 'nickname');
   return clampToShort ? clampOutgoingNickname(nick) : nick;
+}
+
+function parseNicknameStringMap(
+  raw: unknown,
+  clampOutgoing: boolean,
+): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [name, val] of Object.entries(raw as Record<string, unknown>)) {
+    const nick = String(val ?? '').trim();
+    if (!nick) continue;
+    out[name] = clampOutgoing ? clampOutgoingNickname(nick) : nick;
+  }
+  return out;
+}
+
+export async function generateMissingIslandNicknames(
+  apiKey: string,
+  prompt: string,
+): Promise<GeneratedMissingNicknames> {
+  const raw = parseJson<Record<string, unknown>>(await callGemini(apiKey, prompt));
+  return {
+    outgoing: parseNicknameStringMap(raw.outgoing, true),
+    incoming: parseNicknameStringMap(raw.incoming, false),
+  };
 }

@@ -28,15 +28,20 @@ import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
 import { GeminiError } from './lib/gemini/client';
 import {
   buildFullCharacterPrompt,
+  buildMissingIslandNicknamesPrompt,
   buildOneDefaultNicknamePrompt,
   buildOnePhrasePrompt,
-  buildOneTargetNicknamePrompt,
 } from './lib/gemini/prompts';
 import {
   generateFullCharacter,
+  generateMissingIslandNicknames,
   generateOneNickname,
   generateOnePhrase,
 } from './lib/gemini/client';
+import {
+  countMissingNicknamePairs,
+  getMissingNicknamePairs,
+} from './lib/missingNicknames';
 import type { FullCharacterGeneration } from './lib/gemini/types';
 import type { PhraseType } from './types';
 import type { AuthMode } from './components/AuthScreen';
@@ -318,24 +323,58 @@ export function AppMain({
     if (nick) addNicknameDefault(selected.id, nick);
   }, [addNicknameDefault, apiKey, characters, runAi, selected]);
 
-  const handleGenerateOutgoingNickname = useCallback(
-    async (targetId: string) => {
-      if (!selected) return;
-      const target = characters.find((c) => c.id === targetId);
-      if (!target) return;
-      const current = selected.nicknames[targetId] ?? [];
-      if (current.length >= MAX_NICKNAME_OPTIONS) return;
-      const nick = await runAi(`nick:out:${targetId}`, () =>
-        generateOneNickname(
-          apiKey,
-          buildOneTargetNicknamePrompt(selected, target, characters),
-          true,
-        ),
-      );
-      if (nick) addOutgoingNicknameForTarget(selected.id, targetId, nick);
-    },
-    [addOutgoingNicknameForTarget, apiKey, characters, runAi, selected],
-  );
+  const handleGenerateMissingNicknames = useCallback(async () => {
+    if (!selected) return;
+    const missing = getMissingNicknamePairs(selected, characters);
+    if (countMissingNicknamePairs(missing) === 0) {
+      setAiNotice({
+        kind: 'success',
+        message: 'All islander nicknames are already set',
+      });
+      return;
+    }
+    const generated = await runAi('nick:missing', () =>
+      generateMissingIslandNicknames(
+        apiKey,
+        buildMissingIslandNicknamesPrompt(selected, characters, missing),
+      ),
+    );
+    if (!generated) return;
+
+    const nameToId = new Map(characters.map((c) => [c.name, c.id]));
+    let added = 0;
+
+    for (const [name, nick] of Object.entries(generated.outgoing)) {
+      const targetId = nameToId.get(name);
+      if (!targetId || !nick.trim()) continue;
+      if ((selected.nicknames[targetId] ?? []).some((v) => v.trim())) continue;
+      addOutgoingNicknameForTarget(selected.id, targetId, nick);
+      added += 1;
+    }
+
+    for (const [name, nick] of Object.entries(generated.incoming)) {
+      const speakerId = nameToId.get(name);
+      if (!speakerId || !nick.trim()) continue;
+      const speaker = characters.find((c) => c.id === speakerId);
+      if ((speaker?.nicknames[selected.id] ?? []).some((v) => v.trim())) continue;
+      addNicknameForTarget(speakerId, selected.id, nick);
+      added += 1;
+    }
+
+    if (added > 0) {
+      setAiNotice({
+        kind: 'success',
+        message: `Added ${added} nickname${added === 1 ? '' : 's'}`,
+      });
+    }
+  }, [
+    addNicknameForTarget,
+    addOutgoingNicknameForTarget,
+    apiKey,
+    characters,
+    runAi,
+    selected,
+  ]);
 
   const handleDeleteCharacter = useCallback(() => {
     if (!selected) return;
@@ -459,7 +498,7 @@ export function AppMain({
               }
               onGeneratePhrase={handleGeneratePhrase}
               onGenerateDefaultNickname={handleGenerateDefaultNickname}
-              onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
+              onGenerateMissingNicknames={handleGenerateMissingNicknames}
               onOpenCharacter={handleOpenFromNicknames}
               communityPhrasesEnabled={communityPhrasesEnabled}
               islandersNickOpen={islandersNickOpen}

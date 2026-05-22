@@ -1582,6 +1582,22 @@ img.avatar {
   margin-bottom: 0.65rem;
 }
 
+.nickname-batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.nickname-batch-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
 /* Gemini generation feedback (fixed bottom) */
 .ai-gen-status {
   position: fixed;

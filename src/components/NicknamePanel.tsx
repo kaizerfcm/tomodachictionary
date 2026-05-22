@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MAX_NICKNAME_OPTIONS, MAX_SHORT_TEXT_LENGTH } from '../constants';
+import {
+  countMissingNicknamePairs,
+  getMissingNicknamePairs,
+} from '../lib/missingNicknames';
 import { getPairNicknamesForSearch } from '../lib/nicknames';
 import type { Character } from '../types';
 import { AiSparkButton } from './AiSparkButton';
@@ -26,7 +30,7 @@ interface NicknamePanelProps {
   hasApiKey?: boolean;
   generatingKey?: string | null;
   onGenerateDefault?: () => void;
-  onGenerateOutgoing?: (targetId: string) => void;
+  onGenerateMissing?: () => void;
 }
 
 function NicknameChipList({
@@ -73,8 +77,6 @@ function IslanderNicknameCard({
   other,
   outgoingValues,
   incomingValues,
-  hasApiKey,
-  generatingKey,
   onOpenCharacter,
   onUpdateOutgoingAt,
   onRemoveOutgoingAt,
@@ -82,14 +84,11 @@ function IslanderNicknameCard({
   onUpdateIncomingAt,
   onRemoveIncomingAt,
   onAddIncoming,
-  onGenerateOutgoing,
 }: {
   subject: Character;
   other: Character;
   outgoingValues: string[];
   incomingValues: string[];
-  hasApiKey?: boolean;
-  generatingKey?: string | null;
   onOpenCharacter: (id: string) => void;
   onUpdateOutgoingAt: (index: number, value: string) => void;
   onRemoveOutgoingAt: (index: number) => void;
@@ -97,11 +96,9 @@ function IslanderNicknameCard({
   onUpdateIncomingAt: (index: number, value: string) => void;
   onRemoveIncomingAt: (index: number) => void;
   onAddIncoming: () => void;
-  onGenerateOutgoing?: () => void;
 }) {
   const canAddOutgoing = outgoingValues.length < MAX_NICKNAME_OPTIONS;
   const canAddIncoming = incomingValues.length < MAX_NICKNAME_OPTIONS;
-  const outgoingBusy = generatingKey === `nick:out:${other.id}`;
 
   return (
     <li className="nickname-pair-card">
@@ -119,14 +116,6 @@ function IslanderNicknameCard({
           <div className="nickname-pair-row-head">
             <span className="nickname-pair-label">{subject.name} calls them</span>
             <div className="nickname-pair-row-actions">
-              {hasApiKey && onGenerateOutgoing && (
-                <AiSparkButton
-                  busy={outgoingBusy}
-                  disabled={!canAddOutgoing}
-                  title={`Generate nickname for ${other.name}`}
-                  onClick={onGenerateOutgoing}
-                />
-              )}
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -239,7 +228,7 @@ export function NicknamePanel({
   hasApiKey,
   generatingKey,
   onGenerateDefault,
-  onGenerateOutgoing,
+  onGenerateMissing,
 }: NicknamePanelProps) {
   const [filter, setFilter] = useState('');
 
@@ -262,6 +251,12 @@ export function NicknamePanel({
 
   const defaults = subject.nicknameDefaults;
   const canAddDefault = defaults.length < MAX_NICKNAME_OPTIONS;
+  const missingPairs = useMemo(
+    () => getMissingNicknamePairs(subject, allCharacters),
+    [subject, allCharacters],
+  );
+  const missingCount = countMissingNicknamePairs(missingPairs);
+  const batchBusy = generatingKey === 'nick:missing';
 
   return (
     <section className="nicknames-panel">
@@ -315,6 +310,26 @@ export function NicknamePanel({
             </button>
           </div>
 
+          {hasApiKey && onGenerateMissing && others.length > 0 && (
+            <div className="nickname-batch-toolbar">
+              <AiSparkButton
+                busy={batchBusy}
+                disabled={missingCount === 0}
+                title={
+                  missingCount === 0
+                    ? 'All islander nicknames are set'
+                    : `Generate ${missingCount} missing nickname${missingCount === 1 ? '' : 's'} (one per direction)`
+                }
+                onClick={onGenerateMissing}
+              />
+              <span className="nickname-batch-label">
+                {missingCount === 0
+                  ? 'All islander nicknames set'
+                  : `Generate missing (${missingCount})`}
+              </span>
+            </div>
+          )}
+
           <ul className="nickname-pair-grid">
             {visibleIslanders.length === 0 ? (
               <li className="empty-hint">No matches.</li>
@@ -326,8 +341,6 @@ export function NicknamePanel({
                   other={other}
                   outgoingValues={subject.nicknames[other.id] ?? []}
                   incomingValues={other.nicknames[subject.id] ?? []}
-                  hasApiKey={hasApiKey}
-                  generatingKey={generatingKey}
                   onOpenCharacter={onOpenCharacter}
                   onUpdateOutgoingAt={(i, v) =>
                     onUpdateOutgoingAt(other.id, i, v)
@@ -339,11 +352,6 @@ export function NicknamePanel({
                   }
                   onRemoveIncomingAt={(i) => onRemoveIncoming(other.id, i)}
                   onAddIncoming={() => onAddIncoming(other.id)}
-                  onGenerateOutgoing={
-                    onGenerateOutgoing
-                      ? () => onGenerateOutgoing(other.id)
-                      : undefined
-                  }
                 />
               ))
             )}

@@ -32,7 +32,7 @@ export function Modal({
             onClick={onClose}
             aria-label="Close"
           >
-            ×
+            Close
           </button>
         </header>
         <div className="modal-body">{children}</div>

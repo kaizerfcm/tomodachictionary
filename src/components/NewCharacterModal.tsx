@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { MAX_CHARACTER_EXTRA_LENGTH } from '../constants';
 import { Modal } from './Modal';
 
 interface NewCharacterModalProps {
   hasApiKey: boolean;
   onClose: () => void;
-  onAddPlain: (name: string) => void;
-  onAddWithGeneration: (name: string) => void;
+  onAddPlain: (name: string, extra?: string) => void;
+  onAddWithGeneration: (name: string, extra?: string) => void;
 }
 
 export function NewCharacterModal({
@@ -15,19 +16,21 @@ export function NewCharacterModal({
   onAddWithGeneration,
 }: NewCharacterModalProps) {
   const [name, setName] = useState('');
+  const [extra, setExtra] = useState('');
 
   const trimmed = name.trim();
+  const trimmedExtra = extra.trim();
   const canSubmit = trimmed.length > 0;
 
   const handlePlain = () => {
     if (!canSubmit) return;
-    onAddPlain(trimmed);
+    onAddPlain(trimmed, trimmedExtra || undefined);
     onClose();
   };
 
   const handleGenerate = () => {
     if (!canSubmit) return;
-    onAddWithGeneration(trimmed);
+    onAddWithGeneration(trimmed, trimmedExtra || undefined);
   };
 
   return (
@@ -87,6 +90,18 @@ export function NewCharacterModal({
             hasApiKey ? handleGenerate() : handlePlain();
           }
         }}
+      />
+      <label className="config-label" htmlFor="new-char-extra">
+        Extra
+      </label>
+      <textarea
+        id="new-char-extra"
+        className="config-input config-textarea"
+        value={extra}
+        maxLength={MAX_CHARACTER_EXTRA_LENGTH}
+        rows={2}
+        placeholder="Source, series, tone…"
+        onChange={(e) => setExtra(e.target.value)}
       />
       {hasApiKey ? (
         <p className="modal-intro">

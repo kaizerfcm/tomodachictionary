@@ -1,6 +1,10 @@
 import { MAX_SHORT_TEXT_LENGTH } from '../../constants';
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
+import {
+  formatCharacterExtraBlock,
+  formatCharacterExtraSnapshot,
+} from '../characterExtra';
 import type { MissingNicknamePairs } from '../missingNicknames';
 import { getEffectiveNickname } from '../nicknames';
 import { isShortPhraseType } from '../textLimits';
@@ -40,7 +44,7 @@ export function buildIslandSnapshot(
         c.nicknameDefaults.length > 0
           ? c.nicknameDefaults.join(' | ')
           : '(none)';
-      return `- ${c.name}: default_addresses="${defaults}"; samples=${sampleStr}`;
+      return `- ${c.name}: default_addresses="${defaults}"; samples=${sampleStr}${formatCharacterExtraSnapshot(c)}`;
     })
     .join('\n');
 }
@@ -48,16 +52,20 @@ export function buildIslandSnapshot(
 export function buildFullCharacterPrompt(
   newName: string,
   characters: Character[],
+  newExtra?: string,
 ): string {
   const island = buildIslandSnapshot(characters);
   const targets = characters.map((c) => c.name).join(', ');
+  const extraBlock = newExtra?.trim()
+    ? `\nExtra (source / notes from user):\n${newExtra.trim()}\n`
+    : '';
 
   const hasCast = characters.length > 0;
 
   return `You are writing spoken dialogue lines for a custom island cast in a life-simulation style game.
 
 NEW CHARACTER: "${newName}"
-
+${extraBlock}
 CANON FIRST (required):
 - Base "${newName}" entirely on their source canon — personality, speech patterns, famous lines, and relationships from their original series, game, or work.
 - Dialogue and nicknames must sound like THIS character before any island-style humor or game parody.
@@ -119,7 +127,7 @@ export function buildOnePhrasePrompt(
 ): string {
   const existing = character.phrases[type].filter(Boolean);
   return `Write ONE new spoken dialogue line for "${character.name}".
-
+${formatCharacterExtraBlock(character)}
 Type: ${phraseLabel(type)} (JSON key: ${type})
 
 Cast tone reference:
@@ -141,7 +149,7 @@ export function buildOneDefaultNicknamePrompt(
 ): string {
   const existing = character.nicknameDefaults;
   return `Write ONE default nickname "${character.name}" would use for strangers / new acquaintances.
-
+${formatCharacterExtraBlock(character)}
 Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters (abbreviate if needed).
 
 Cast context:
@@ -160,7 +168,7 @@ export function buildOneTargetNicknamePrompt(
 ): string {
   const existing = character.nicknames[target.id] ?? [];
   return `Write ONE nickname "${character.name}" would use to address "${target.name}".
-
+${formatCharacterExtraBlock(character)}${formatCharacterExtraBlock(target)}
 Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters (abbreviate if needed).
 
 Cast context:
@@ -183,7 +191,7 @@ export function buildMissingIslandNicknamesPrompt(
   return `You are writing nicknames for a custom island cast in a life-simulation style game.
 
 SUBJECT (profile being edited): "${subject.name}"
-
+${formatCharacterExtraBlock(subject)}
 CANON FIRST: nicknames must fit each character's source canon voice and relationship to "${subject.name}".
 
 Cast context:

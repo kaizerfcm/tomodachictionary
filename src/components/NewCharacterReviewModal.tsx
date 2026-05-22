@@ -12,6 +12,7 @@ import { Modal } from './Modal';
 
 interface NewCharacterReviewModalProps {
   name: string;
+  extra?: string;
   generation: FullCharacterGeneration;
   existingCharacters: Character[];
   onConfirm: (result: {
@@ -27,6 +28,7 @@ function tripletPicks() {
 
 export function NewCharacterReviewModal({
   name,
+  extra,
   generation,
   existingCharacters,
   onConfirm,
@@ -76,7 +78,7 @@ export function NewCharacterReviewModal({
     }
 
     const char: Character = {
-      ...createCharacter(name),
+      ...createCharacter(name, undefined, extra),
       phrases,
       nicknameDefaults,
       nicknames,

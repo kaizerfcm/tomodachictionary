@@ -13,6 +13,9 @@ export const AI_BATCH_SIZE = 1;
 /** Max character name length. */
 export const MAX_CHARACTER_NAME_LENGTH = 24;
 
+/** Optional source / notes for AI generation. */
+export const MAX_CHARACTER_EXTRA_LENGTH = 512;
+
 /** Starting/ending sentence fragments and “calls others” nicknames (game UI limit). */
 export const MAX_SHORT_TEXT_LENGTH = 13;
 

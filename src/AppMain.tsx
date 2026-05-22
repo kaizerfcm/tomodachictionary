@@ -92,6 +92,7 @@ export function AppMain({
 
   const [newCharReview, setNewCharReview] = useState<{
     name: string;
+    extra?: string;
     generation: FullCharacterGeneration;
   } | null>(null);
 
@@ -109,6 +110,7 @@ export function AppMain({
     applyCharacters,
     removeCharacter,
     updateCharacterName,
+    updateCharacterExtra,
     updateCharacterAvatar,
     updatePhrase,
     addPhrase,
@@ -267,16 +269,16 @@ export function AppMain({
   );
 
   const handleAddWithGeneration = useCallback(
-    async (name: string) => {
+    async (name: string, extra?: string) => {
       setShowNewCharModal(false);
       const generation = await runAi('newchar', () =>
         generateFullCharacter(
           apiKey,
-          buildFullCharacterPrompt(name, characters),
+          buildFullCharacterPrompt(name, characters, extra),
         ),
       );
       if (generation) {
-        setNewCharReview({ name, generation });
+        setNewCharReview({ name, extra, generation });
       }
     },
     [apiKey, characters, runAi],
@@ -456,6 +458,9 @@ export function AppMain({
               onBack={() => handleSelectCharacter(null)}
               nicknameFocusCharacterId={nicknameFilterFromId}
               onNameChange={(name) => updateCharacterName(selected.id, name)}
+              onExtraChange={(extra) =>
+                updateCharacterExtra(selected.id, extra)
+              }
               onAvatarChange={(avatar) =>
                 updateCharacterAvatar(selected.id, avatar)
               }
@@ -526,8 +531,8 @@ export function AppMain({
         <NewCharacterModal
           hasApiKey={hasApiKey}
           onClose={() => setShowNewCharModal(false)}
-          onAddPlain={(name) => {
-            const c = addCharacter(name);
+          onAddPlain={(name, extra) => {
+            const c = addCharacter(name, extra);
             setShowNewCharModal(false);
             if (c) handleSelectCharacter(c.id);
           }}
@@ -551,6 +556,7 @@ export function AppMain({
       {newCharReview && (
         <NewCharacterReviewModal
           name={newCharReview.name}
+          extra={newCharReview.extra}
           generation={newCharReview.generation}
           existingCharacters={characters}
           onConfirm={handleConfirmNewCharacter}

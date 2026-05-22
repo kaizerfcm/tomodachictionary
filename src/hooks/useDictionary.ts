@@ -5,7 +5,11 @@ import {
   type PhraseType,
   createCharacter,
 } from '../types';
-import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from '../constants';
+import {
+  MAX_CHARACTER_EXTRA_LENGTH,
+  MAX_NICKNAME_OPTIONS,
+  MAX_PHRASES_PER_TYPE,
+} from '../constants';
 import { dedupeNicknames } from '../lib/nicknames';
 import {
   clampOutgoingNickname,
@@ -152,10 +156,10 @@ export function useDictionary({
     characters.find((c) => c.id === selectedId) ?? null;
 
   const addCharacter = useCallback(
-    (name: string) => {
+    (name: string, extra?: string) => {
       const trimmed = name.trim();
       if (!trimmed) return null;
-      const char = createCharacter(trimmed);
+      const char = createCharacter(trimmed, undefined, extra);
       updateCharacters((prev) => [...prev, char]);
       setSelectedId(char.id);
       return char;
@@ -287,6 +291,25 @@ export function useDictionary({
       if (!trimmed) return;
       updateCharacters((prev) =>
         prev.map((c) => (c.id === id ? { ...c, name: trimmed } : c)),
+      );
+    },
+    [updateCharacters],
+  );
+
+  const updateCharacterExtra = useCallback(
+    (id: string, extra: string) => {
+      const trimmed = extra.trim();
+      updateCharacters((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                extra: trimmed
+                  ? trimmed.slice(0, MAX_CHARACTER_EXTRA_LENGTH)
+                  : undefined,
+              }
+            : c,
+        ),
       );
     },
     [updateCharacters],
@@ -478,6 +501,7 @@ export function useDictionary({
     applyCharacters,
     removeCharacter,
     updateCharacterName,
+    updateCharacterExtra,
     updateCharacterAvatar,
     updatePhrase,
     addPhrase,

@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import type { Character } from '../types';
 import type { PhraseType } from '../types';
+import { MAX_CHARACTER_EXTRA_LENGTH } from '../constants';
 import { fileToAvatarDataUrl } from '../lib/avatar';
 import { CharacterAvatar } from './CharacterAvatar';
 import { PhraseEditor } from './PhraseSection';
@@ -11,6 +12,7 @@ interface CharacterEditorProps {
   allCharacters: Character[];
   onBack: () => void;
   onNameChange: (name: string) => void;
+  onExtraChange: (extra: string) => void;
   onAvatarChange: (dataUrl: string | undefined) => void;
   onDelete: () => void;
   onUpdatePhrase: (type: PhraseType, index: number, text: string) => void;
@@ -42,6 +44,7 @@ export function CharacterEditor({
   allCharacters,
   onBack,
   onNameChange,
+  onExtraChange,
   onAvatarChange,
   onDelete,
   onUpdatePhrase,
@@ -113,13 +116,26 @@ export function CharacterEditor({
             />
             <span className="avatar-upload-hint">Change photo</span>
           </label>
-          <input
-            type="text"
-            className="character-title-input"
-            value={character.name}
-            onChange={(e) => onNameChange(e.target.value)}
-            aria-label="Character name"
-          />
+          <div className="editor-identity-fields">
+            <input
+              type="text"
+              className="character-title-input"
+              value={character.name}
+              onChange={(e) => onNameChange(e.target.value)}
+              aria-label="Character name"
+            />
+            <label className="editor-extra-label">
+              Extra
+              <textarea
+                className="editor-extra-input"
+                value={character.extra ?? ''}
+                maxLength={MAX_CHARACTER_EXTRA_LENGTH}
+                rows={2}
+                placeholder="Source, series, tone…"
+                onChange={(e) => onExtraChange(e.target.value)}
+              />
+            </label>
+          </div>
         </div>
         <div className="editor-header-actions">
           {character.avatar && (

@@ -34,21 +34,21 @@ export function AiGenerationStatus({
           className={`ai-gen-toast ai-gen-toast-${notice.kind}`}
           role={notice.kind === 'error' ? 'alert' : 'status'}
         >
-          <span>{notice.message}</span>
+          <p className="ai-gen-toast-message">{notice.message}</p>
           <button
             type="button"
-            className="btn btn-ghost btn-sm ai-gen-toast-dismiss"
+            className="ai-gen-toast-close"
             onClick={onDismissNotice}
-            aria-label="Dismiss"
+            aria-label="Dismiss notification"
           >
-            ×
+            Close
           </button>
         </div>
       )}
       {busy && (
         <div className="ai-gen-spinner-wrap" aria-busy="true" aria-label="Generating with Gemini">
           <span className="ai-gen-spinner" aria-hidden />
-          <span className="ai-gen-spinner-label">Generating…</span>
+          <span className="ai-gen-spinner-label">Generating with Gemini…</span>
         </div>
       )}
     </div>

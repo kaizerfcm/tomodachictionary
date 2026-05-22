@@ -1,4 +1,4 @@
-import { MAX_PHRASES_PER_TYPE } from './constants';
+import { MAX_CHARACTER_EXTRA_LENGTH, MAX_PHRASES_PER_TYPE } from './constants';
 
 export const PHRASE_TYPES = [
   { key: 'catchphrases', label: 'Catchphrases' },
@@ -25,6 +25,8 @@ export interface Character {
   nicknames: Record<string, string[]>;
   /** Tiny JPEG data URL (see lib/avatar). */
   avatar?: string;
+  /** Optional source, origin, or notes to guide AI generation. */
+  extra?: string;
   /** Unix ms — used for “date added” sort. */
   createdAt: number;
 }
@@ -96,6 +98,12 @@ export function migrateCharacter(raw: LegacyCharacter | Character): Character {
       ? (raw as Character).createdAt
       : 0;
 
+  const extra =
+    typeof (raw as Character).extra === 'string'
+      ? (raw as Character).extra!.trim().slice(0, MAX_CHARACTER_EXTRA_LENGTH) ||
+          undefined
+      : undefined;
+
   return {
     id: raw.id,
     name: raw.name,
@@ -103,17 +111,26 @@ export function migrateCharacter(raw: LegacyCharacter | Character): Character {
     nicknameDefaults,
     nicknames,
     avatar,
+    extra,
     createdAt,
   };
 }
 
-export function createCharacter(name: string, id?: string): Character {
+export function createCharacter(
+  name: string,
+  id?: string,
+  extra?: string,
+): Character {
+  const trimmedExtra = extra?.trim();
   return {
     id: id ?? crypto.randomUUID(),
     name,
     phrases: emptyPhrases(),
     nicknameDefaults: [],
     nicknames: {},
+    extra: trimmedExtra
+      ? trimmedExtra.slice(0, MAX_CHARACTER_EXTRA_LENGTH)
+      : undefined,
     createdAt: Date.now(),
   };
 }

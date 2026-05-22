@@ -22,7 +22,7 @@ export function RemoveAdsPage({
   onRemoveFree,
   onPaymentComplete,
 }: RemoveAdsPageProps) {
-  const { paymentUrl } = payment;
+  const { paymentUrl, priceLabel } = payment;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +71,10 @@ export function RemoveAdsPage({
                 Sign in so your Play Store purchase is linked to cloud save.
               </p>
             )}
+            <p className="remove-ads-fine">
+              One-time purchase ({priceLabel}). Google Play shows the exact
+              price in your region.
+            </p>
             <button
               type="button"
               className="btn btn-primary btn-block"

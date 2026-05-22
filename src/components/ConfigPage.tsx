@@ -1,8 +1,13 @@
+import type { AiProviderId } from '../lib/ai/types';
+import { providerLabel } from '../lib/ai/callModel';
 import type { ThemePreference } from '../lib/theme';
 
 interface ConfigPageProps {
+  provider: AiProviderId;
+  onProviderChange: (provider: AiProviderId) => void;
   apiKey: string;
   onApiKeyChange: (key: string) => void;
+  signedIn: boolean;
   accountEmail?: string;
   themePreference: ThemePreference;
   onThemePreferenceChange: (pref: ThemePreference) => void;
@@ -10,9 +15,41 @@ interface ConfigPageProps {
   onBack: () => void;
 }
 
+const PROVIDERS: AiProviderId[] = [
+  'gemini',
+  'groq',
+  'openrouter',
+  'hosted',
+];
+
+function keyPlaceholder(provider: AiProviderId): string {
+  switch (provider) {
+    case 'groq':
+      return 'gsk_…';
+    case 'openrouter':
+      return 'sk-or-…';
+    default:
+      return 'AIza…';
+  }
+}
+
+function keyHelpUrl(provider: AiProviderId): string {
+  switch (provider) {
+    case 'groq':
+      return 'https://console.groq.com/keys';
+    case 'openrouter':
+      return 'https://openrouter.ai/keys';
+    default:
+      return 'https://aistudio.google.com/apikey';
+  }
+}
+
 export function ConfigPage({
+  provider,
+  onProviderChange,
   apiKey,
   onApiKeyChange,
+  signedIn,
   accountEmail,
   themePreference,
   onThemePreferenceChange,
@@ -28,6 +65,8 @@ export function ConfigPage({
       onClearAllData();
     }
   };
+
+  const showKeyField = provider !== 'hosted';
 
   return (
     <main className="config-page">
@@ -72,40 +111,71 @@ export function ConfigPage({
       </section>
 
       <section className="config-section">
-        <h2>Gemini API</h2>
+        <h2>Generation</h2>
         <p className="config-desc">
-          Used to generate dialogue and nicknames in character. Your key stays
-          in this browser only (localStorage). Get a key from{' '}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Google AI Studio
-          </a>
-          .
+          🎲 <strong>Suggest</strong> uses free on-device templates. ✨{' '}
+          <strong>Canon AI</strong> uses the provider below. 👥 Community
+          suggestions need sign-in (no API key).
         </p>
-        <label className="config-label" htmlFor="gemini-key">
-          API key
+        <label className="config-label" htmlFor="ai-provider">
+          Canon AI provider
         </label>
-        <input
-          id="gemini-key"
-          type="password"
-          className="config-input"
-          value={apiKey}
-          onChange={(e) => onApiKeyChange(e.target.value)}
-          placeholder="AIza…"
-          autoComplete="off"
-        />
-        <p className="config-hint">Model: Gemini 2.5 Flash</p>
-        {apiKey.trim() ? (
+        <select
+          id="ai-provider"
+          className="config-input config-select"
+          value={provider}
+          onChange={(e) =>
+            onProviderChange(e.target.value as AiProviderId)
+          }
+        >
+          {PROVIDERS.map((id) => (
+            <option key={id} value={id}>
+              {providerLabel(id)}
+            </option>
+          ))}
+        </select>
+        {provider === 'hosted' && (
+          <p className="config-hint">
+            {signedIn
+              ? 'Uses Tomodict cloud quota (40 requests/day per account). No API key needed.'
+              : 'Sign in to use Tomodict cloud generation.'}
+          </p>
+        )}
+        {showKeyField && (
+          <>
+            <label className="config-label" htmlFor="ai-key">
+              {providerLabel(provider)} API key
+            </label>
+            <input
+              id="ai-key"
+              type="password"
+              className="config-input"
+              value={apiKey}
+              onChange={(e) => onApiKeyChange(e.target.value)}
+              placeholder={keyPlaceholder(provider)}
+              autoComplete="off"
+            />
+            <p className="config-hint">
+              Stored in this browser only. Get a key from{' '}
+              <a
+                href={keyHelpUrl(provider)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {providerLabel(provider)}
+              </a>
+              .
+            </p>
+          </>
+        )}
+        {(showKeyField && apiKey.trim()) || (provider === 'hosted' && signedIn) ? (
           <p className="config-status config-status-ok">
-            Generate buttons are enabled.
+            Canon AI (✨) is enabled.
           </p>
         ) : (
           <p className="config-status">
-            Add a key to enable AI generation when creating or editing
-            characters.
+            Canon AI needs a key or Tomodict cloud (when signed in). Quick fill
+            and 🎲 suggest work without a key.
           </p>
         )}
       </section>

@@ -29,9 +29,13 @@ interface CharacterEditorProps {
   onUpdateIncomingAt: (speakerId: string, index: number, value: string) => void;
   onAddIncoming: (speakerId: string, value?: string) => void;
   onRemoveIncoming: (speakerId: string, index: number) => void;
-  onGeneratePhrase: (type: PhraseType) => void;
-  onGenerateDefaultNickname: () => void;
-  onGenerateMissingNicknames: () => void;
+  onSuggestLocalPhrase: (type: PhraseType) => void;
+  onCanonAiPhrase: (type: PhraseType) => void;
+  onSuggestLocalDefaultNickname: () => void;
+  onCanonAiDefaultNickname: () => void;
+  onSuggestLocalMissingNicknames: () => void;
+  onCanonAiMissingNicknames: () => void;
+  communityNicknamesEnabled?: boolean;
   onOpenCharacter: (id: string) => void;
   nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
@@ -61,9 +65,13 @@ export function CharacterEditor({
   onUpdateIncomingAt,
   onAddIncoming,
   onRemoveIncoming,
-  onGeneratePhrase,
-  onGenerateDefaultNickname,
-  onGenerateMissingNicknames,
+  onSuggestLocalPhrase,
+  onCanonAiPhrase,
+  onSuggestLocalDefaultNickname,
+  onCanonAiDefaultNickname,
+  onSuggestLocalMissingNicknames,
+  onCanonAiMissingNicknames,
+  communityNicknamesEnabled,
   onOpenCharacter,
   nicknameFocusCharacterId,
   islandersNickOpen,
@@ -166,11 +174,10 @@ export function CharacterEditor({
           </button>
         </div>
       </header>
-      {!hasApiKey && (
-        <p className="gen-inline-hint">
-          Add a Gemini API key in Configuration to use ✨ generate buttons.
-        </p>
-      )}
+      <p className="gen-inline-hint">
+        🎲 suggests lines free on-device. ✨ Canon AI uses your configured provider.
+        {communityPhrasesEnabled && ' 👥 loads phrases from other islands when signed in.'}
+      </p>
       <PhraseEditor
         characterName={character.name}
         communityEnabled={communityPhrasesEnabled}
@@ -180,7 +187,8 @@ export function CharacterEditor({
         onRemovePhrase={onRemovePhrase}
         hasApiKey={hasApiKey}
         generatingKey={generatingKey}
-        onGeneratePhrase={onGeneratePhrase}
+        onSuggestLocalPhrase={onSuggestLocalPhrase}
+        onCanonAiPhrase={onCanonAiPhrase}
       />
       <NicknamePanel
         subject={character}
@@ -199,9 +207,13 @@ export function CharacterEditor({
         onAddIncoming={onAddIncoming}
         onRemoveIncoming={onRemoveIncoming}
         hasApiKey={hasApiKey}
+        communityNicknamesEnabled={communityNicknamesEnabled}
         generatingKey={generatingKey}
-        onGenerateDefault={onGenerateDefaultNickname}
-        onGenerateMissing={onGenerateMissingNicknames}
+        onSuggestLocalDefault={onSuggestLocalDefaultNickname}
+        onCanonAiDefault={onCanonAiDefaultNickname}
+        onSuggestLocalMissing={onSuggestLocalMissingNicknames}
+        onCanonAiMissing={onCanonAiMissingNicknames}
+        onAddDefaultNickname={(value) => onAddNicknameDefault(value)}
       />
     </main>
   );

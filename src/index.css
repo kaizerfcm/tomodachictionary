@@ -679,6 +679,7 @@ img.avatar {
 }
 
 .btn-ai,
+.btn-suggest,
 .btn-community {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -694,6 +695,26 @@ img.avatar {
 
 .btn-ai {
   color: var(--accent);
+}
+
+.btn-suggest {
+  color: var(--text-muted);
+}
+
+.btn-suggest:hover:not(:disabled) {
+  background: var(--selected-bg);
+  border-color: var(--border);
+}
+
+.btn-suggest:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nickname-compact-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .btn-community {
@@ -1543,6 +1564,15 @@ img.avatar {
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
+}
+
+/* Native AdMob sits below this CTA strip; extra room avoids overlap with grid */
+.ad-banner--native {
+  min-height: 2.75rem;
+}
+
+.app--with-native-ads .main-area-body {
+  padding-bottom: 3.5rem;
 }
 
 .remove-ads-pay-btn {

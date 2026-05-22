@@ -6,16 +6,15 @@
 
 ---
 
-## Priority for the next agent
+## Priority for release
 
 | Priority | Task | Why |
 |----------|------|-----|
-| **P0** | Implement `window.TomodictBilling` (Play Billing Library 6+) | UI already calls it; without it, “Buy remove ads” throws |
-| **P0** | Create & activate Play product `remove_ads` (non-consumable) | Must match `PLAY_PRODUCT_REMOVE_ADS` in code |
-| **P1** | Signed release AAB + internal testing track | First Play upload |
-| **P1** | `.env.android.local` with real `VITE_SUPABASE_*` | Auth + cloud save on device |
-| **P2** | Smoke-test full editor on phone (see checklist) | Touch UX already tuned partially for mobile |
-| **P3** | Optional: hide `@vercel/analytics` on Android | Harmless but useless in WebView |
+| **P0** | Play Console: app + `remove_ads` product + internal testing AAB | Billing only works after upload + activated product |
+| **P0** | Production AdMob app/banner IDs in `.env.android.local` + `strings.xml` | Test IDs are dev-only |
+| **P1** | Signed release AAB + license testers | Real purchase / restore QA |
+| **P1** | `.env.android.local` with `VITE_SUPABASE_*` | Auth + cloud save + `ads_removed` sync |
+| **P2** | Device smoke-test (see checklist below) | Touch UX + ads + billing |
 
 **Not required for v1 Android:** Stripe, seed files (`public/seed.md` — removed), Vercel deploy, community phrases (works if Supabase Edge Function is deployed; same as web).
 
@@ -34,14 +33,18 @@
 | Mobile web CSS | `@media (max-width: 768px)`: sidebar **islander list hidden** (grid picks characters); compact toolbar |
 | SDK | `compileSdk` / `targetSdk` **35**, `minSdk` **23** (`android/variables.gradle`) |
 | Version | `versionCode 1`, `versionName "1.0"` (`android/app/build.gradle`) — bump before each Play upload |
+| AdMob (home grid) | `@capacitor-community/admob`, `useAdMobBanner`, `src/lib/admobConfig.ts` |
+| Play Billing native | `TomodictBillingPlugin.java` + `window.TomodictBilling` injection |
+| Vercel Analytics | Skipped on Android builds (`App.tsx`) |
 
 ---
 
-## What is NOT done (blockers)
+## What you still do outside the repo (blockers for store)
 
-1. **Native billing bridge** — `window.TomodictBilling` is declared in `src/lib/googlePlay.ts` but **never injected** from Java/Kotlin. `MainActivity.java` is still the stock Capacitor stub.
-2. **Play Console** — product `remove_ads`, testers, signed app if not set up yet.
-3. **Release signing** — keystore + Play App Signing as needed.
+1. **Play Console** — create app, `remove_ads` in-app product (~**$4.99** US / **R$20** BR), license testers, upload signed AAB to **Internal testing**.
+2. **AdMob console** — link app `app.tomodict.editor`, create banner unit, replace test IDs in `.env.android.local` and `android/app/src/main/res/values/strings.xml` (`admob_app_id`).
+3. **Release signing** — upload keystore + Play App Signing.
+4. **Store listing** — privacy policy URL, Data safety (ads + purchases + account), content rating, screenshots.
 
 ---
 
@@ -67,7 +70,8 @@ React (src/) ──vite build --mode android──► dist/
 | `src/lib/paymentConfig.ts` | Android → no Stripe URL |
 | `src/components/RemoveAdsPage.tsx` | Play purchase / restore buttons |
 | `src/hooks/useUserProfile.ts` | `confirmPlayPurchase()` sets `ads_removed` in Supabase |
-| `android/app/src/main/java/app/tomodict/editor/MainActivity.java` | **Extend here** (or plugin) for billing |
+| `android/app/src/main/java/app/tomodict/editor/TomodictBillingPlugin.java` | Play Billing 7 + `window.TomodictBilling` |
+| `src/hooks/useAdMobBanner.ts` | Native banner on home grid when ads enabled |
 
 ---
 
@@ -87,9 +91,16 @@ VITE_SUPABASE_ANON_KEY=eyJ...
 
 # Leave empty on Android — Stripe is web-only
 VITE_PAYMENT_URL_INTL=
+
+# AdMob (use Google test IDs until you have production units)
+VITE_ADMOB_APP_ID=ca-app-pub-3940256099942544~3347511713
+VITE_ADMOB_BANNER_ID=ca-app-pub-3940256099942544/6300978111
+VITE_ADMOB_TESTING=true
 ```
 
 **Do not set** `VITE_PAYMENT_URL_INTL` to a Stripe URL on Android builds.
+
+Copy [`.env.android`](.env.android) → **`.env.android.local`** (gitignored) and fill Supabase + production AdMob IDs before release.
 
 Template in repo (fill locally): copy from `.env.android` if present on disk, or use the block above.
 
@@ -117,9 +128,21 @@ npm run cap:open    # Android Studio → Run on device/emulator
 
 ---
 
+## AdMob (home grid)
+
+- Plugin: `@capacitor-community/admob`
+- Shown when `showGrid && !adsRemoved` via `useAdMobBanner` in `AppMain.tsx`
+- WebView CTA strip: `AdBanner` (Remove ads buttons only; ad creative is native)
+- Android manifest: `com.google.android.gms.ads.APPLICATION_ID` → `@string/admob_app_id`
+- Before production: replace test app/banner IDs in env + `strings.xml`
+
+---
+
 ## P0: Google Play Billing bridge
 
-### Contract (already used by TypeScript)
+Implemented in **`TomodictBillingPlugin`** (Billing Library 7.1). Registered from `MainActivity`.
+
+### Contract (used by TypeScript)
 
 ```ts
 // Injected on Android WebView only — see src/lib/googlePlay.ts
@@ -137,25 +160,23 @@ Flow:
 
 User should be **signed in** before purchase so the flag attaches to their Supabase profile (UI warns if not).
 
-### Recommended implementation
-
-**Option A (preferred):** Small **Capacitor plugin** (e.g. `TomodictBillingPlugin`) in `android/` using [Google Play Billing Library 6+](https://developer.android.com/google/play/billing), product ID **`remove_ads`**, type **one-time / non-consumable** (INAPP non-consumable).
-
-**Option B:** Vetted community Capacitor billing plugin, as long as it exposes the same `window.TomodictBilling` shape (inject in `MainActivity.onStart` via `WebView` evaluateJavascript or Capacitor plugin bridge).
-
-**Option C:** Inline in `MainActivity` + `JavascriptInterface` — faster hack, less maintainable.
-
 Constants must stay in sync:
 
 - Code: `PLAY_PRODUCT_REMOVE_ADS = 'remove_ads'` in `src/lib/googlePlay.ts`
 - Play Console → Monetize → Products → in-app product ID **`remove_ads`**
 
-### Play Console setup
+### Play Console setup (release checklist)
 
-1. Create app (or use existing) with package **`app.tomodict.editor`**.
-2. **Monetize → In-app products** → one-time / non-consumable → ID **`remove_ads`**, set price, **Activate**.
-3. Add license testers for sandbox purchases.
-4. Upload AAB to **Internal testing** before production.
+1. **Developer account** ($25 one-time) → create app package **`app.tomodict.editor`**.
+2. **Monetize → In-app products** → one-time → ID **`remove_ads`**:
+   - US: **$4.99** (closest tier to $5)
+   - Brazil: **R$ 20,00**
+   - **Activate** the product.
+3. **Setup → License testing** — add tester Gmail accounts.
+4. **Release → Testing → Internal testing** — upload first **signed AAB** (billing needs a published testing track).
+5. **Store presence** — icon, screenshots, descriptions.
+6. **Policy** — privacy policy URL; **Data safety** (ads, in-app purchases, email account); **Content rating** questionnaire.
+7. **Monetization setup** — declare ads; link AdMob app to Play app in AdMob console.
 
 ---
 
@@ -190,10 +211,11 @@ Use a build with valid `VITE_SUPABASE_*` and billing wired.
 
 ### Ads & billing
 
-- [ ] Home grid shows ad strip when `ads_removed` is false
-- [ ] Remove ads: **Buy** and **Restore** visible; **no** Stripe link; **no** “remove without paying”
-- [ ] After purchase (signed in): ads gone; `ads_removed` true in Supabase
-- [ ] After reinstall + Restore: ads still removed when signed in
+- [ ] Home grid shows **AdMob test banner** (bottom) when `ads_removed` is false
+- [ ] CTA strip: **Remove ads** opens purchase page; **no** Stripe; **no** free remove link
+- [ ] Buy `remove_ads` while signed in → native banner hidden → `ads_removed` true in Supabase
+- [ ] Reinstall → sign in → **Restore purchase** → ads stay off
+- [ ] Purchase while signed out → local ads off; after sign-in + Restore, cloud flag syncs
 
 ### Mobile UX (already in CSS; verify feel)
 
@@ -247,13 +269,23 @@ Use a build with valid `VITE_SUPABASE_*` and billing wired.
 
 ---
 
-## Suggested PR / task breakdown for Android milestone
+## Release signing (AAB)
 
-1. `feat(android): TomodictBilling Capacitor plugin` — purchase + restore + inject `window.TomodictBilling`
-2. `docs: Play Console checklist` — screenshots / internal testing notes (optional)
-3. `chore(android): bump versionCode` — per release
-4. Optional: `fix(android): skip Vercel Analytics when VITE_PLATFORM=android`
+1. Android Studio → **Build → Generate Signed Bundle / APK** → **Android App Bundle**.
+2. Create upload keystore (backup passwords securely; never commit).
+3. Play Console → **App signing** → opt into Play App Signing.
+4. Bump `versionCode` / `versionName` in `android/app/build.gradle` per upload.
+
+---
+
+## Troubleshooting (AdMob)
+
+| Symptom | Likely fix |
+|---------|------------|
+| No banner / “no fill” | Use test ad unit IDs; check `admob_app_id` in manifest |
+| Banner overlaps grid | Confirm `app--with-native-ads` padding; banner is `BOTTOM_CENTER` |
+| Consent blocks ads in EU test | UMP form declined — normal in test; verify production consent config |
 
 **Web `main` is ahead:** do not revert web-only behavior; only gate with `isAndroidApp()` where needed.
 
-_Last updated: handoff for Android focus — web on Vercel includes Extra field, paired nicknames, no seed bootstrap, mobile sidebar list hidden._
+_Last updated: AdMob + TomodictBilling plugin in repo; Play Console steps remain manual._

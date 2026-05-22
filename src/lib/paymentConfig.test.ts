@@ -14,6 +14,7 @@ describe('getPaymentConfig', () => {
     vi.stubEnv('VITE_PLATFORM', 'android');
     const config = getPaymentConfig();
     expect(config.paymentUrl).toBeNull();
+    expect(config.priceLabel).toContain('$5');
     vi.unstubAllEnvs();
   });
 });

@@ -18,6 +18,8 @@ import { ConfigPage } from './components/ConfigPage';
 import { TosPage } from './components/TosPage';
 import { RemoveAdsPage } from './components/RemoveAdsPage';
 import { AdBanner } from './components/AdBanner';
+import { useAdMobBanner } from './hooks/useAdMobBanner';
+import { shouldUseNativeAds } from './lib/admobConfig';
 import { SyncBanner } from './components/SyncBanner';
 import {
   AiGenerationStatus,
@@ -25,7 +27,13 @@ import {
 } from './components/AiGenerationStatus';
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
-import { GeminiError } from './lib/gemini/client';
+import { AiError } from './lib/ai/errors';
+import {
+  generateFullCharacter,
+  generateMissingIslandNicknames,
+  generateOneNickname,
+  generateOnePhrase,
+} from './lib/ai/generate';
 import {
   buildFullCharacterPrompt,
   buildMissingIslandNicknamesPrompt,
@@ -33,11 +41,12 @@ import {
   buildOnePhrasePrompt,
 } from './lib/gemini/prompts';
 import {
-  generateFullCharacter,
-  generateMissingIslandNicknames,
-  generateOneNickname,
-  generateOnePhrase,
-} from './lib/gemini/client';
+  generateLocalDefaultNickname,
+  generateLocalMissingNicknames,
+  generateLocalPhrase,
+  generateQuickFillCharacter,
+} from './lib/localGeneration';
+import { canUseCommunityNicknames } from './lib/communityNicknames';
 import {
   countMissingNicknamePairs,
   getMissingNicknamePairs,
@@ -71,7 +80,6 @@ export function AppMain({
   onSignOut,
   onOpenAuth,
 }: AppMainProps) {
-  const { apiKey, setApiKey, hasApiKey } = useSettings();
   const { preference: themePreference, setPreference: setThemePreference } =
     useTheme();
   const { adsRemoved, setAdsRemoved, refreshProfile, confirmPlayPurchase } =
@@ -129,7 +137,16 @@ export function AppMain({
   const accountEmail = userEmail ? formatAccountLabel(userEmail) : undefined;
   const payment = getPaymentConfig();
   const signedIn = storageMode === 'cloud' && Boolean(userId);
+  const {
+    apiKey,
+    setApiKey,
+    provider,
+    setProvider,
+    hasApiKey,
+    aiSettings,
+  } = useSettings(signedIn);
   const communityPhrasesEnabled = canUseCommunityPhrases(signedIn);
+  const communityNicknamesEnabled = canUseCommunityNicknames(signedIn);
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
@@ -138,6 +155,8 @@ export function AppMain({
 
   const showGrid = !selected;
   const showAdBanner = showGrid && !adsRemoved;
+
+  useAdMobBanner(showAdBanner);
 
   useEffect(() => {
     if (loading) return;
@@ -253,12 +272,12 @@ export function AppMain({
         return result;
       } catch (e) {
         const msg =
-          e instanceof GeminiError
+          e instanceof AiError
             ? e.message
             : e instanceof Error
               ? e.message
               : 'Generation failed';
-        console.error('[Gemini]', key, msg, e);
+        console.error('[AI]', key, msg, e);
         setAiNotice({ kind: 'error', message: msg });
         return null;
       } finally {
@@ -268,12 +287,25 @@ export function AppMain({
     [hasApiKey],
   );
 
-  const handleAddWithGeneration = useCallback(
+  const handleQuickFill = useCallback(
+    (name: string, extra?: string) => {
+      setShowNewCharModal(false);
+      const generation = generateQuickFillCharacter(name, extra, characters);
+      setNewCharReview({ name, extra, generation });
+      setAiNotice({
+        kind: 'success',
+        message: 'Quick fill ready — review and add',
+      });
+    },
+    [characters],
+  );
+
+  const handleCanonAiNewCharacter = useCallback(
     async (name: string, extra?: string) => {
       setShowNewCharModal(false);
       const generation = await runAi('newchar', () =>
         generateFullCharacter(
-          apiKey,
+          aiSettings,
           buildFullCharacterPrompt(name, characters, extra),
         ),
       );
@@ -281,8 +313,113 @@ export function AppMain({
         setNewCharReview({ name, extra, generation });
       }
     },
-    [apiKey, characters, runAi],
+    [aiSettings, characters, runAi],
   );
+
+  const handleSuggestLocalPhrase = useCallback(
+    (type: PhraseType) => {
+      if (!selected) return;
+      if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
+      setGeneratingKey(`phrase:local:${type}`);
+      try {
+        const line = generateLocalPhrase(selected, type);
+        addPhrase(selected.id, type, line);
+        setAiNotice({ kind: 'success', message: 'Line suggested' });
+      } finally {
+        setGeneratingKey(null);
+      }
+    },
+    [addPhrase, selected],
+  );
+
+  const handleCanonAiPhrase = useCallback(
+    async (type: PhraseType) => {
+      if (!selected) return;
+      if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
+      const line = await runAi(`phrase:${type}`, () =>
+        generateOnePhrase(
+          aiSettings,
+          buildOnePhrasePrompt(selected, characters, type),
+          type,
+        ),
+      );
+      if (line) addPhrase(selected.id, type, line);
+    },
+    [addPhrase, aiSettings, characters, runAi, selected],
+  );
+
+  const handleSuggestLocalDefaultNickname = useCallback(() => {
+    if (!selected) return;
+    if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
+    setGeneratingKey('nick:local:default');
+    try {
+      const nick = generateLocalDefaultNickname(selected);
+      addNicknameDefault(selected.id, nick);
+      setAiNotice({ kind: 'success', message: 'Nickname suggested' });
+    } finally {
+      setGeneratingKey(null);
+    }
+  }, [addNicknameDefault, selected]);
+
+  const handleCanonAiDefaultNickname = useCallback(async () => {
+    if (!selected) return;
+    if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
+    const nick = await runAi('nick:default', () =>
+      generateOneNickname(
+        aiSettings,
+        buildOneDefaultNicknamePrompt(selected, characters),
+        true,
+      ),
+    );
+    if (nick) addNicknameDefault(selected.id, nick);
+  }, [addNicknameDefault, aiSettings, characters, runAi, selected]);
+
+  const handleSuggestLocalMissingNicknames = useCallback(() => {
+    if (!selected) return;
+    const missing = getMissingNicknamePairs(selected, characters);
+    if (countMissingNicknamePairs(missing) === 0) {
+      setAiNotice({
+        kind: 'success',
+        message: 'All islander nicknames are already set',
+      });
+      return;
+    }
+    setGeneratingKey('nick:local:missing');
+    try {
+      const generated = generateLocalMissingNicknames(selected, missing);
+      const nameToId = new Map(characters.map((c) => [c.name, c.id]));
+      let added = 0;
+      for (const [name, nick] of Object.entries(generated.outgoing)) {
+        const targetId = nameToId.get(name);
+        if (!targetId || !nick.trim()) continue;
+        if ((selected.nicknames[targetId] ?? []).some((v) => v.trim())) continue;
+        addOutgoingNicknameForTarget(selected.id, targetId, nick);
+        added += 1;
+      }
+      for (const [name, nick] of Object.entries(generated.incoming)) {
+        const speakerId = nameToId.get(name);
+        if (!speakerId || !nick.trim()) continue;
+        const speaker = characters.find((c) => c.id === speakerId);
+        if ((speaker?.nicknames[selected.id] ?? []).some((v) => v.trim()))
+          continue;
+        addNicknameForTarget(speakerId, selected.id, nick);
+        added += 1;
+      }
+      if (added > 0) {
+        setAiNotice({
+          kind: 'success',
+          message: `Suggested ${added} nickname${added === 1 ? '' : 's'}`,
+        });
+      }
+    } finally {
+      setGeneratingKey(null);
+    }
+  }, [
+    addNicknameForTarget,
+    addOutgoingNicknameForTarget,
+    characters,
+    selected,
+  ]);
 
   const handleConfirmNewCharacter = useCallback(
     (result: {
@@ -296,36 +433,7 @@ export function AppMain({
     [addCharacterFull, handleSelectCharacter],
   );
 
-  const handleGeneratePhrase = useCallback(
-    async (type: PhraseType) => {
-      if (!selected) return;
-      if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
-      const line = await runAi(`phrase:${type}`, () =>
-        generateOnePhrase(
-          apiKey,
-          buildOnePhrasePrompt(selected, characters, type),
-          type,
-        ),
-      );
-      if (line) addPhrase(selected.id, type, line);
-    },
-    [addPhrase, apiKey, characters, runAi, selected],
-  );
-
-  const handleGenerateDefaultNickname = useCallback(async () => {
-    if (!selected) return;
-    if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
-    const nick = await runAi('nick:default', () =>
-      generateOneNickname(
-        apiKey,
-        buildOneDefaultNicknamePrompt(selected, characters),
-        true,
-      ),
-    );
-    if (nick) addNicknameDefault(selected.id, nick);
-  }, [addNicknameDefault, apiKey, characters, runAi, selected]);
-
-  const handleGenerateMissingNicknames = useCallback(async () => {
+  const handleCanonAiMissingNicknames = useCallback(async () => {
     if (!selected) return;
     const missing = getMissingNicknamePairs(selected, characters);
     if (countMissingNicknamePairs(missing) === 0) {
@@ -337,7 +445,7 @@ export function AppMain({
     }
     const generated = await runAi('nick:missing', () =>
       generateMissingIslandNicknames(
-        apiKey,
+        aiSettings,
         buildMissingIslandNicknamesPrompt(selected, characters, missing),
       ),
     );
@@ -372,7 +480,7 @@ export function AppMain({
   }, [
     addNicknameForTarget,
     addOutgoingNicknameForTarget,
-    apiKey,
+    aiSettings,
     characters,
     runAi,
     selected,
@@ -403,8 +511,11 @@ export function AppMain({
   if (view === 'config') {
     return (
       <ConfigPage
+        provider={provider}
+        onProviderChange={setProvider}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
+        signedIn={signedIn}
         accountEmail={accountEmail}
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
@@ -435,7 +546,13 @@ export function AppMain({
   }
 
   return (
-    <div className="app">
+    <div
+      className={
+        showAdBanner && shouldUseNativeAds()
+          ? 'app app--with-native-ads'
+          : 'app'
+      }
+    >
       <Sidebar
         characters={sidebarCharacters}
         selectedId={selectedId}
@@ -501,11 +618,15 @@ export function AppMain({
               onRemoveIncoming={(speakerId, index) =>
                 removeNicknameAt(speakerId, selected.id, index)
               }
-              onGeneratePhrase={handleGeneratePhrase}
-              onGenerateDefaultNickname={handleGenerateDefaultNickname}
-              onGenerateMissingNicknames={handleGenerateMissingNicknames}
+              onSuggestLocalPhrase={handleSuggestLocalPhrase}
+              onCanonAiPhrase={handleCanonAiPhrase}
+              onSuggestLocalDefaultNickname={handleSuggestLocalDefaultNickname}
+              onCanonAiDefaultNickname={handleCanonAiDefaultNickname}
+              onSuggestLocalMissingNicknames={handleSuggestLocalMissingNicknames}
+              onCanonAiMissingNicknames={handleCanonAiMissingNicknames}
               onOpenCharacter={handleOpenFromNicknames}
               communityPhrasesEnabled={communityPhrasesEnabled}
+              communityNicknamesEnabled={communityNicknamesEnabled}
               islandersNickOpen={islandersNickOpen}
               onIslandersNickOpenChange={handleIslandersNickOpenChange}
             />
@@ -536,7 +657,8 @@ export function AppMain({
             setShowNewCharModal(false);
             if (c) handleSelectCharacter(c.id);
           }}
-          onAddWithGeneration={handleAddWithGeneration}
+          onQuickFill={handleQuickFill}
+          onCanonAi={handleCanonAiNewCharacter}
         />
       )}
 

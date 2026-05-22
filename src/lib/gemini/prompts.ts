@@ -27,13 +27,27 @@ function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
   return out;
 }
 
+/** Max cast rows in full-character / batch prompts. */
+export const ISLAND_SNAPSHOT_LIMIT_FULL = 6;
+
+function buildCompactCastNames(
+  characters: Character[],
+  focusId?: string,
+  max = 4,
+): string {
+  const others = characters.filter((c) => c.id !== focusId).slice(0, max);
+  if (others.length === 0) return '(none)';
+  return others.map((c) => c.name).join(', ');
+}
+
 export function buildIslandSnapshot(
   characters: Character[],
   focusId?: string,
+  limit = ISLAND_SNAPSHOT_LIMIT_FULL,
 ): string {
   const others = characters.filter((c) => c.id !== focusId);
   return others
-    .slice(0, 12)
+    .slice(0, limit)
     .map((c) => {
       const samples = samplePhrases(c, 2);
       const sampleStr =
@@ -122,16 +136,13 @@ function phraseLabel(type: PhraseType): string {
 
 export function buildOnePhrasePrompt(
   character: Character,
-  allCharacters: Character[],
+  _allCharacters: Character[],
   type: PhraseType,
 ): string {
-  const existing = character.phrases[type].filter(Boolean);
+  const existing = character.phrases[type].filter(Boolean).slice(0, 5);
   return `Write ONE new spoken dialogue line for "${character.name}".
 ${formatCharacterExtraBlock(character)}
 Type: ${phraseLabel(type)} (JSON key: ${type})
-
-Cast tone reference:
-${buildIslandSnapshot(allCharacters, character.id)}
 
 EXISTING lines for this type (do NOT duplicate):
 ${JSON.stringify(existing)}
@@ -147,13 +158,12 @@ export function buildOneDefaultNicknamePrompt(
   character: Character,
   allCharacters: Character[],
 ): string {
-  const existing = character.nicknameDefaults;
+  const existing = character.nicknameDefaults.slice(0, 5);
   return `Write ONE default nickname "${character.name}" would use for strangers / new acquaintances.
 ${formatCharacterExtraBlock(character)}
 Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters (abbreviate if needed).
 
-Cast context:
-${buildIslandSnapshot(allCharacters, character.id)}
+Other islanders (names only): ${buildCompactCastNames(allCharacters, character.id)}
 
 EXISTING defaults (do NOT duplicate):
 ${JSON.stringify(existing)}
@@ -171,8 +181,7 @@ export function buildOneTargetNicknamePrompt(
 ${formatCharacterExtraBlock(character)}${formatCharacterExtraBlock(target)}
 Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters (abbreviate if needed).
 
-Cast context:
-${buildIslandSnapshot(allCharacters, character.id)}
+Other islanders (names only): ${buildCompactCastNames(allCharacters, character.id)}
 
 EXISTING nicknames for ${target.name} (do NOT duplicate):
 ${JSON.stringify(existing.length ? existing : [getEffectiveNickname(character, target)])}
@@ -194,8 +203,8 @@ SUBJECT (profile being edited): "${subject.name}"
 ${formatCharacterExtraBlock(subject)}
 CANON FIRST: nicknames must fit each character's source canon voice and relationship to "${subject.name}".
 
-Cast context:
-${buildIslandSnapshot(allCharacters, subject.id)}
+Cast context (compact):
+${buildIslandSnapshot(allCharacters, subject.id, ISLAND_SNAPSHOT_LIMIT_FULL)}
 
 Generate exactly ONE nickname per name below. Use the exact islander names as JSON keys.
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
+import { isAndroidApp } from './lib/platform';
 import { useAuth } from './hooks/useAuth';
 import { AppMain } from './AppMain';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -19,6 +20,8 @@ import { loadFromStorage } from './lib/storage';
 import { detectAccountCountry } from './lib/detectCountry';
 import { ensureUserProfile } from './lib/userProfile';
 import './index.css';
+
+const WebAnalytics = () => (isAndroidApp() ? null : <Analytics />);
 
 function App() {
   const auth = useAuth();
@@ -125,7 +128,7 @@ function App() {
         <div className="app-loading">
           <p>Loading…</p>
         </div>
-        <Analytics />
+        <WebAnalytics />
       </>
     );
   }
@@ -141,7 +144,7 @@ function App() {
           onSignIn={() => handleOpenAuth('signIn')}
           onSignUp={() => handleOpenAuth('signUp')}
         />
-        <Analytics />
+        <WebAnalytics />
       </>
     );
   }
@@ -155,7 +158,7 @@ function App() {
           onBack={() => setAuthView(null)}
           onSubmit={handleAuthSubmit}
         />
-        <Analytics />
+        <WebAnalytics />
       </>
     );
   }

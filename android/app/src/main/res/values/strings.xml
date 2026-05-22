@@ -4,4 +4,6 @@
     <string name="title_activity_main">Tomodict</string>
     <string name="package_name">app.tomodict.editor</string>
     <string name="custom_url_scheme">app.tomodict.editor</string>
+    <!-- Replace with production AdMob app ID before release -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
 </resources>

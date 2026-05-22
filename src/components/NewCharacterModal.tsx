@@ -6,14 +6,16 @@ interface NewCharacterModalProps {
   hasApiKey: boolean;
   onClose: () => void;
   onAddPlain: (name: string, extra?: string) => void;
-  onAddWithGeneration: (name: string, extra?: string) => void;
+  onQuickFill: (name: string, extra?: string) => void;
+  onCanonAi: (name: string, extra?: string) => void;
 }
 
 export function NewCharacterModal({
   hasApiKey,
   onClose,
   onAddPlain,
-  onAddWithGeneration,
+  onQuickFill,
+  onCanonAi,
 }: NewCharacterModalProps) {
   const [name, setName] = useState('');
   const [extra, setExtra] = useState('');
@@ -28,9 +30,14 @@ export function NewCharacterModal({
     onClose();
   };
 
-  const handleGenerate = () => {
+  const handleQuickFill = () => {
     if (!canSubmit) return;
-    onAddWithGeneration(trimmed, trimmedExtra || undefined);
+    onQuickFill(trimmed, trimmedExtra || undefined);
+  };
+
+  const handleCanonAi = () => {
+    if (!canSubmit) return;
+    onCanonAi(trimmed, trimmedExtra || undefined);
   };
 
   return (
@@ -42,33 +49,30 @@ export function NewCharacterModal({
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          {hasApiKey ? (
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={!canSubmit}
-                onClick={handlePlain}
-              >
-                Add empty
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={!canSubmit}
-                onClick={handleGenerate}
-              >
-                Generate with Gemini
-              </button>
-            </>
-          ) : (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!canSubmit}
+            onClick={handlePlain}
+          >
+            Add empty
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!canSubmit}
+            onClick={handleQuickFill}
+          >
+            Quick fill
+          </button>
+          {hasApiKey && (
             <button
               type="button"
               className="btn btn-secondary"
               disabled={!canSubmit}
-              onClick={handlePlain}
+              onClick={handleCanonAi}
             >
-              Add character
+              Canon AI
             </button>
           )}
         </>
@@ -86,8 +90,8 @@ export function NewCharacterModal({
         placeholder="e.g. Saber (Fate)"
         autoFocus
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && canSubmit && !hasApiKey) {
-            handlePlain();
+          if (e.key === 'Enter' && canSubmit) {
+            handleQuickFill();
           }
         }}
       />
@@ -103,11 +107,20 @@ export function NewCharacterModal({
         placeholder="Source, series, tone…"
         onChange={(e) => setExtra(e.target.value)}
       />
-      {!hasApiKey && (
-        <p className="modal-intro">
-          Add a Gemini API key in Configuration to auto-generate dialogue.
-        </p>
-      )}
+      <p className="modal-intro">
+        <strong>Quick fill</strong> uses free local templates (playful, generic).
+        {hasApiKey ? (
+          <>
+            {' '}
+            <strong>Canon AI</strong> uses your API key for source-accurate lines.
+          </>
+        ) : (
+          <>
+            {' '}
+            Add an API key in Configuration for canon-accurate generation.
+          </>
+        )}
+      </p>
     </Modal>
   );
 }

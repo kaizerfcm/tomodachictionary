@@ -1,5 +1,6 @@
 import type { PaymentConfig } from '../lib/paymentConfig';
 import { openPaymentLink, usesWebStripe } from '../lib/paymentConfig';
+import { shouldUseNativeAds } from '../lib/admobConfig';
 import { usesGooglePlayBilling } from '../lib/platform';
 
 interface AdBannerProps {
@@ -8,11 +9,17 @@ interface AdBannerProps {
 }
 
 export function AdBanner({ payment, onOpenRemoveAds }: AdBannerProps) {
-  const { paymentUrl } = payment;
+  const { paymentUrl, priceLabel } = payment;
+  const nativeAds = shouldUseNativeAds();
 
   return (
-    <aside className="ad-banner" aria-label="Support">
-      <span className="ad-banner-text">Ads help cover hosting</span>
+    <aside
+      className={`ad-banner${nativeAds ? ' ad-banner--native' : ''}`}
+      aria-label="Advertisement"
+    >
+      {!nativeAds && (
+        <span className="ad-banner-text">Ads help cover hosting</span>
+      )}
       <div className="ad-banner-actions">
         {usesWebStripe() && paymentUrl && (
           <button
@@ -20,7 +27,7 @@ export function AdBanner({ payment, onOpenRemoveAds }: AdBannerProps) {
             className="btn btn-primary btn-sm"
             onClick={() => openPaymentLink(paymentUrl)}
           >
-            Pay to remove ads
+            Pay to remove ads ({priceLabel})
           </button>
         )}
         {usesGooglePlayBilling() && (

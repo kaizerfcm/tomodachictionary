@@ -11,7 +11,7 @@ const DEFAULT_STRIPE_URL =
 export function getPaymentConfig(): PaymentConfig {
   if (usesGooglePlayBilling()) {
     return {
-      priceLabel: 'in-app purchase',
+      priceLabel: 'about $5 / R$20',
       paymentUrl: null,
     };
   }

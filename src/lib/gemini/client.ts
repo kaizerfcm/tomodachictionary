@@ -2,6 +2,7 @@
 export {
   generateFullCharacter,
   generateMissingIslandNicknames,
+  generateMissingIslandNicknamesBatched,
   generateOneNickname,
   generateOnePhrase,
 } from '../ai/generate';

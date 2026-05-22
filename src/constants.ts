@@ -10,6 +10,9 @@ export const MAX_NICKNAME_OPTIONS = 10;
 /** How many options Gemini adds per batch. */
 export const AI_BATCH_SIZE = 1;
 
+/** Max islanders per Fill-missing Gemini request (avoids truncated JSON). */
+export const MISSING_NICKNAMES_CHUNK_SIZE = 12;
+
 /** Max character name length. */
 export const MAX_CHARACTER_NAME_LENGTH = 24;
 
@@ -20,7 +23,7 @@ export const MAX_CHARACTER_EXTRA_LENGTH = 512;
 export const MAX_SHORT_TEXT_LENGTH = 13;
 
 /** Avatar stored as JPEG data URL (px). */
-export const AVATAR_MAX_PX = 48;
+export const AVATAR_MAX_PX = 128;
 
 /** JPEG quality for avatar storage (0–1). */
 export const AVATAR_JPEG_QUALITY = 0.55;

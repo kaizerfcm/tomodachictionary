@@ -25,7 +25,8 @@ const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — not generic villager 
 - Per phrase type triplet: at least 2 of 3 options must be fan-recognizable from the source (quote, near-quote, or specific reference).
 - Use their real speech habits: verbal tics, sarcasm, formality, profanity level, all-caps outbursts, sleepy mumbles, food lines, etc. from canon.
 - FORBIDDEN unless the character has no known lines: bland lines any villager could say ("Hey!", "Yay!", "So happy!", "Life is good", "Best day", "You know it!", "For sure!", "Good to see you!").
-- If the source is obscure, mine Extra notes; still avoid generic Animal Crossing small-talk.`;
+- If the source is obscure, mine Extra notes; still avoid generic small-talk.
+- No need for extra punctuation at the end of the line. This includes periods, commas, and other punctuation, unless the character is specifically known to use them in canon, like a famous line or catchphrase.;`
 
 function canonNicknameRules(speakerName: string): string {
   return `CANON NICKNAMES (required):
@@ -111,7 +112,7 @@ ${PHRASE_TYPE_LIST}
 Rules:
 ${ENGLISH_PHRASE_RULES}
 ${SHORT_TEXT_LIMIT_RULES}
-- Each phrase is short (under ~80 chars), spoken aloud, fits a simple dialogue UI.
+- Each phrase is short (under ~25 characters, except for "startingSentence" and "endingSentence" which are shorter at ${MAX_SHORT_TEXT_LENGTH} characters), spoken aloud, fits a simple dialogue UI.
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (can start with punctuation).
 - "Loud shout" = ALL CAPS if the character shouts in canon.
 - Provide exactly 3 distinct options per phrase type. Each option must draw from different canon moments or lines where possible.
@@ -218,17 +219,21 @@ export function buildMissingIslandNicknamesPrompt(
   subject: Character,
   allCharacters: Character[],
   missing: MissingNicknamePairs,
+  options?: { compactCast?: boolean },
 ): string {
   const outgoingNames = missing.missingOutgoing.map((c) => c.name);
   const incomingNames = missing.missingIncoming.map((c) => c.name);
+  const compact = options?.compactCast ?? false;
+  const castContext = compact
+    ? `Other islanders (names only): ${buildCompactCastNames(allCharacters, subject.id, 16)}`
+    : `Cast context (compact):\n${buildIslandSnapshot(allCharacters, subject.id, ISLAND_SNAPSHOT_LIMIT_FULL)}`;
 
   return `Write nicknames from source canon for a life-simulation cast.
 
 ${characterIdentityBlock(subject.name, subject.extra)}
 ${canonNicknameRules(subject.name)}
 
-Cast context (compact):
-${buildIslandSnapshot(allCharacters, subject.id, ISLAND_SNAPSHOT_LIMIT_FULL)}
+${castContext}
 
 Generate exactly ONE nickname per name below. Use the exact islander names as JSON keys.
 

@@ -1,5 +1,12 @@
+import { MISSING_NICKNAMES_CHUNK_SIZE } from '../../constants';
+import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
+import { buildMissingIslandNicknamesPrompt } from '../gemini/prompts';
 import type { GeneratedMissingNicknames } from '../gemini/types';
+import {
+  chunkMissingNicknamePairs,
+  type MissingNicknamePairs,
+} from '../missingNicknames';
 import {
   applyShortTextLimitsToGeneration,
   clampOutgoingNickname,
@@ -18,7 +25,17 @@ function parseJson<T>(raw: string): T {
   const trimmed = raw.trim();
   const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
   const jsonStr = fence ? fence[1].trim() : trimmed;
-  return JSON.parse(jsonStr) as T;
+  try {
+    return JSON.parse(jsonStr) as T;
+  } catch (e) {
+    const hint =
+      jsonStr.length > 0 && !jsonStr.endsWith('}')
+        ? ' Response may have been cut off — try Fill missing again.'
+        : '';
+    throw new AiError(
+      `Invalid JSON from model${hint} ${e instanceof Error ? e.message : ''}`.trim(),
+    );
+  }
 }
 
 function assertTriplet(value: unknown, label: string): Triplet {
@@ -160,4 +177,32 @@ export async function generateMissingIslandNicknames(
     outgoing: parseNicknameStringMap(raw.outgoing, true),
     incoming: parseNicknameStringMap(raw.incoming, false),
   };
+}
+
+/** Fills many missing nicknames in chunks so output is not truncated. */
+export async function generateMissingIslandNicknamesBatched(
+  apiKey: string,
+  subject: Character,
+  allCharacters: Character[],
+  missing: MissingNicknamePairs,
+): Promise<GeneratedMissingNicknames> {
+  const chunks = chunkMissingNicknamePairs(
+    missing,
+    MISSING_NICKNAMES_CHUNK_SIZE,
+  );
+  const merged: GeneratedMissingNicknames = { outgoing: {}, incoming: {} };
+
+  for (const chunk of chunks) {
+    const prompt = buildMissingIslandNicknamesPrompt(
+      subject,
+      allCharacters,
+      chunk,
+      { compactCast: true },
+    );
+    const part = await generateMissingIslandNicknames(apiKey, prompt);
+    Object.assign(merged.outgoing, part.outgoing);
+    Object.assign(merged.incoming, part.incoming);
+  }
+
+  return merged;
 }

@@ -30,13 +30,12 @@ import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
 import { AiError } from './lib/ai/errors';
 import {
   generateFullCharacter,
-  generateMissingIslandNicknames,
+  generateMissingIslandNicknamesBatched,
   generateOneNickname,
   generateOnePhrase,
 } from './lib/ai/generate';
 import {
   buildFullCharacterPrompt,
-  buildMissingIslandNicknamesPrompt,
   buildOneDefaultNicknamePrompt,
   buildOnePhrasePrompt,
 } from './lib/gemini/prompts';
@@ -356,9 +355,11 @@ export function AppMain({
       return;
     }
     const generated = await runAi('nick:missing', () =>
-      generateMissingIslandNicknames(
+      generateMissingIslandNicknamesBatched(
         apiKey,
-        buildMissingIslandNicknamesPrompt(selected, characters, missing),
+        selected,
+        characters,
+        missing,
       ),
     );
     if (!generated) return;

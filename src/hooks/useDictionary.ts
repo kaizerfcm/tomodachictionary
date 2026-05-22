@@ -7,6 +7,10 @@ import {
 } from '../types';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from '../constants';
 import { dedupeNicknames } from '../lib/nicknames';
+import {
+  clampOutgoingNickname,
+  clampPhraseForType,
+} from '../lib/textLimits';
 import { backfillCreatedAt } from '../lib/characterDates';
 import { migrateCharacter } from '../types';
 import {
@@ -304,7 +308,7 @@ export function useDictionary({
           if (c.id !== charId) return c;
           const phrases = { ...c.phrases };
           const list = [...phrases[type]];
-          list[index] = text;
+          list[index] = clampPhraseForType(type, text);
           phrases[type] = list;
           return { ...c, phrases };
         }),
@@ -323,7 +327,7 @@ export function useDictionary({
             ...c,
             phrases: {
               ...c.phrases,
-              [type]: [...c.phrases[type], text],
+              [type]: [...c.phrases[type], clampPhraseForType(type, text)],
             },
           };
         }),
@@ -378,13 +382,27 @@ export function useDictionary({
     [updateCharacters],
   );
 
+  const updateOutgoingNicknameAt = useCallback(
+    (speakerId: string, targetId: string, index: number, value: string) => {
+      updateNicknameAt(speakerId, targetId, index, clampOutgoingNickname(value));
+    },
+    [updateNicknameAt],
+  );
+
+  const addOutgoingNicknameForTarget = useCallback(
+    (speakerId: string, targetId: string, value = '') => {
+      addNicknameForTarget(speakerId, targetId, clampOutgoingNickname(value));
+    },
+    [addNicknameForTarget],
+  );
+
   const updateNicknameDefaultAt = useCallback(
     (charId: string, index: number, value: string) => {
       updateCharacters((prev) =>
         prev.map((c) => {
           if (c.id !== charId) return c;
           const nicknameDefaults = [...c.nicknameDefaults];
-          nicknameDefaults[index] = value;
+          nicknameDefaults[index] = clampOutgoingNickname(value);
           return { ...c, nicknameDefaults };
         }),
       );
@@ -400,7 +418,10 @@ export function useDictionary({
           if (c.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return c;
           return {
             ...c,
-            nicknameDefaults: [...c.nicknameDefaults, value],
+            nicknameDefaults: [
+              ...c.nicknameDefaults,
+              clampOutgoingNickname(value),
+            ],
           };
         }),
       );
@@ -462,7 +483,9 @@ export function useDictionary({
     addPhrase,
     removePhrase,
     updateNicknameAt,
+    updateOutgoingNicknameAt,
     addNicknameForTarget,
+    addOutgoingNicknameForTarget,
     removeNicknameAt,
     updateNicknameDefaultAt,
     addNicknameDefault,

@@ -1,4 +1,9 @@
 import { PHRASE_TYPES, type PhraseType } from '../../types';
+import {
+  applyShortTextLimitsToGeneration,
+  clampOutgoingNickname,
+  clampPhraseForType,
+} from '../textLimits';
 import type {
   FullCharacterGeneration,
   GeneratedPhrases,
@@ -72,18 +77,24 @@ function assertTriplet(value: unknown, label: string): Triplet {
 function parsePhrases(raw: Record<string, unknown>): GeneratedPhrases {
   const phrases = {} as GeneratedPhrases;
   for (const { key } of PHRASE_TYPES) {
-    phrases[key as PhraseType] = assertTriplet(raw[key], key);
+    const type = key as PhraseType;
+    const triplet = assertTriplet(raw[key], key);
+    phrases[type] = triplet.map((line) => clampPhraseForType(type, line)) as Triplet;
   }
   return phrases;
 }
 
 function parseTripletsMap(
   raw: Record<string, unknown> | undefined,
+  clampNickname = false,
 ): Record<string, Triplet> {
   if (!raw || typeof raw !== 'object') return {};
   const out: Record<string, Triplet> = {};
   for (const [name, val] of Object.entries(raw)) {
-    out[name] = assertTriplet(val, name);
+    const triplet = assertTriplet(val, name);
+    out[name] = clampNickname
+      ? (triplet.map(clampOutgoingNickname) as Triplet)
+      : triplet;
   }
   return out;
 }
@@ -107,15 +118,16 @@ export async function generateFullCharacter(
     throw new GeminiError('Missing phrases or outgoing in response');
   }
 
-  return {
+  const generation: FullCharacterGeneration = {
     phrases: parsePhrases(phrasesRaw),
     outgoing: {
       nicknameDefault: assertTriplet(
         outgoingRaw.nicknameDefault,
         'nicknameDefault',
-      ),
+      ).map(clampOutgoingNickname) as Triplet,
       byTargetName: parseTripletsMap(
         outgoingRaw.byTargetName as Record<string, unknown>,
+        true,
       ),
     },
     incoming: {
@@ -124,20 +136,25 @@ export async function generateFullCharacter(
       ),
     },
   };
+  return applyShortTextLimitsToGeneration(generation);
 }
 
 export async function generateOnePhrase(
   apiKey: string,
   prompt: string,
+  phraseType?: PhraseType,
 ): Promise<string> {
   const raw = parseJson<Record<string, unknown>>(await callGemini(apiKey, prompt));
-  return assertLine(raw, 'line');
+  const line = assertLine(raw, 'line');
+  return phraseType ? clampPhraseForType(phraseType, line) : line;
 }
 
 export async function generateOneNickname(
   apiKey: string,
   prompt: string,
+  clampToShort = false,
 ): Promise<string> {
   const raw = parseJson<Record<string, unknown>>(await callGemini(apiKey, prompt));
-  return assertLine(raw, 'nickname');
+  const nick = assertLine(raw, 'nickname');
+  return clampToShort ? clampOutgoingNickname(nick) : nick;
 }

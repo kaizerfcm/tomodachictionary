@@ -1,6 +1,8 @@
+import { MAX_SHORT_TEXT_LENGTH } from '../../constants';
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
 import { getAllNicknamesForSearch, getEffectiveNickname } from '../nicknames';
+import { isShortPhraseType } from '../textLimits';
 
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
@@ -8,6 +10,8 @@ const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
 
 const ENGLISH_PHRASE_RULES = `- All phrase dialogue must be in English only (Latin script).
 - If the character normally speaks another language in canon, translate or localize into natural English that preserves meaning, tone, and famous-line feel — do not output non-English phrase text.`;
+
+const SHORT_TEXT_LIMIT_RULES = `- Hard limit (${MAX_SHORT_TEXT_LENGTH} characters max, count every character): "startingSentence", "endingSentence", and all outgoing nicknames in outgoing.nicknameDefault and outgoing.byTargetName. Abbreviate or localize if needed; never exceed the limit.`;
 
 function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
   const out: Record<string, string[]> = {};
@@ -68,6 +72,7 @@ ${PHRASE_TYPE_LIST}
 
 Rules:
 ${ENGLISH_PHRASE_RULES}
+${SHORT_TEXT_LIMIT_RULES}
 - Each phrase is short (under ~80 chars), spoken aloud, fits a simple dialogue UI.
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (can start with punctuation).
 - "Loud shout" = ALL CAPS energy.
@@ -125,7 +130,7 @@ ${JSON.stringify(existing)}
 
 Rules:
 ${ENGLISH_PHRASE_RULES}
-- Under ~80 chars, spoken aloud, in-character. "shoutAtSea" = ALL CAPS.
+${isShortPhraseType(type) ? `- Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters for this line (abbreviate if needed).\n` : ''}- Under ~80 chars, spoken aloud, in-character. "shoutAtSea" = ALL CAPS.
 
 Return ONLY valid JSON: { "line": "your new line here" }`;
 }
@@ -136,6 +141,8 @@ export function buildOneDefaultNicknamePrompt(
 ): string {
   const existing = character.nicknameDefaults;
   return `Write ONE default nickname "${character.name}" would use for strangers / new acquaintances.
+
+Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters (abbreviate if needed).
 
 Cast context:
 ${buildIslandSnapshot(allCharacters, character.id)}
@@ -153,6 +160,8 @@ export function buildOneTargetNicknamePrompt(
 ): string {
   const existing = character.nicknames[target.id] ?? [];
   return `Write ONE nickname "${character.name}" would use to address "${target.name}".
+
+Hard limit: at most ${MAX_SHORT_TEXT_LENGTH} characters (abbreviate if needed).
 
 Cast context:
 ${buildIslandSnapshot(allCharacters, character.id)}

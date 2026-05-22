@@ -21,6 +21,10 @@ import { TosPage } from './components/TosPage';
 import { RemoveAdsPage } from './components/RemoveAdsPage';
 import { AdBanner } from './components/AdBanner';
 import { SyncBanner } from './components/SyncBanner';
+import {
+  AiGenerationStatus,
+  type AiNotice,
+} from './components/AiGenerationStatus';
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
 import { GeminiError } from './lib/gemini/client';
@@ -44,6 +48,7 @@ import { getPaymentConfig } from './lib/paymentConfig';
 import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
 import { canUseCommunityPhrases } from './lib/communityPhrases';
+import { aiSuccessMessage } from './lib/aiGenerationMessages';
 
 type View = 'main' | 'config' | 'tos' | 'removeAds';
 
@@ -72,7 +77,7 @@ export function AppMain({
   const [view, setView] = useState<View>('main');
   const [showNewCharModal, setShowNewCharModal] = useState(false);
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
-  const [genError, setGenError] = useState<string | null>(null);
+  const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
   const [gridSort, setGridSortState] = useState<GridSort>(getGridSort);
   const [outgoingNickOpen, setOutgoingNickOpenState] = useState(
     getOutgoingNickOpen,
@@ -109,6 +114,8 @@ export function AppMain({
     updatePhrase,
     addPhrase,
     removePhrase,
+    updateOutgoingNicknameAt,
+    addOutgoingNicknameForTarget,
     updateNicknameAt,
     addNicknameForTarget,
     removeNicknameAt,
@@ -242,9 +249,12 @@ export function AppMain({
     async <T,>(key: string, fn: () => Promise<T>): Promise<T | null> => {
       if (!hasApiKey) return null;
       setGeneratingKey(key);
-      setGenError(null);
+      setAiNotice(null);
       try {
-        return await fn();
+        const result = await fn();
+        const successMsg = aiSuccessMessage(key, result);
+        if (successMsg) setAiNotice({ kind: 'success', message: successMsg });
+        return result;
       } catch (e) {
         const msg =
           e instanceof GeminiError
@@ -252,7 +262,8 @@ export function AppMain({
             : e instanceof Error
               ? e.message
               : 'Generation failed';
-        setGenError(msg);
+        console.error('[Gemini]', key, msg, e);
+        setAiNotice({ kind: 'error', message: msg });
         return null;
       } finally {
         setGeneratingKey(null);
@@ -297,6 +308,7 @@ export function AppMain({
         generateOnePhrase(
           apiKey,
           buildOnePhrasePrompt(selected, characters, type),
+          type,
         ),
       );
       if (line) addPhrase(selected.id, type, line);
@@ -311,6 +323,7 @@ export function AppMain({
       generateOneNickname(
         apiKey,
         buildOneDefaultNicknamePrompt(selected, characters),
+        true,
       ),
     );
     if (nick) addNicknameDefault(selected.id, nick);
@@ -327,11 +340,12 @@ export function AppMain({
         generateOneNickname(
           apiKey,
           buildOneTargetNicknamePrompt(selected, target, characters),
+          true,
         ),
       );
-      if (nick) addNicknameForTarget(selected.id, targetId, nick);
+      if (nick) addOutgoingNicknameForTarget(selected.id, targetId, nick);
     },
-    [addNicknameForTarget, apiKey, characters, runAi, selected],
+    [addOutgoingNicknameForTarget, apiKey, characters, runAi, selected],
   );
 
   const handleGenerateIncomingNickname = useCallback(
@@ -445,7 +459,6 @@ export function AppMain({
               }
               hasApiKey={hasApiKey}
               generatingKey={generatingKey}
-              genError={genError}
               onUpdateNicknameDefaultAt={(index, value) =>
                 updateNicknameDefaultAt(selected.id, index, value)
               }
@@ -456,10 +469,10 @@ export function AppMain({
                 removeNicknameDefault(selected.id, index)
               }
               onUpdateNicknameAt={(targetId, index, value) =>
-                updateNicknameAt(selected.id, targetId, index, value)
+                updateOutgoingNicknameAt(selected.id, targetId, index, value)
               }
               onAddNickname={(targetId, value) =>
-                addNicknameForTarget(selected.id, targetId, value)
+                addOutgoingNicknameForTarget(selected.id, targetId, value)
               }
               onRemoveNickname={(targetId, index) =>
                 removeNicknameAt(selected.id, targetId, index)
@@ -520,6 +533,12 @@ export function AppMain({
         showLocalPrompt={storageMode === 'local' && syncAvailable}
         onCreateAccount={() => onOpenAuth('signUp')}
         onSignIn={() => onOpenAuth('signIn')}
+      />
+
+      <AiGenerationStatus
+        busy={generatingKey !== null}
+        notice={aiNotice}
+        onDismissNotice={() => setAiNotice(null)}
       />
 
       {newCharReview && (

@@ -18,7 +18,6 @@ interface CharacterEditorProps {
   onRemovePhrase: (type: PhraseType, index: number) => void;
   hasApiKey: boolean;
   generatingKey: string | null;
-  genError: string | null;
   onUpdateNicknameDefaultAt: (index: number, value: string) => void;
   onAddNicknameDefault: (value?: string) => void;
   onRemoveNicknameDefault: (index: number) => void;
@@ -53,7 +52,6 @@ export function CharacterEditor({
   onRemovePhrase,
   hasApiKey,
   generatingKey,
-  genError,
   onUpdateNicknameDefaultAt,
   onAddNicknameDefault,
   onRemoveNicknameDefault,
@@ -144,7 +142,6 @@ export function CharacterEditor({
           </button>
         </div>
       </header>
-      {genError && <p className="gen-inline-error">{genError}</p>}
       {!hasApiKey && (
         <p className="gen-inline-hint">
           Add a Gemini API key in Configuration to use ✨ generate buttons.

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { MAX_NICKNAME_OPTIONS } from '../constants';
+import { MAX_NICKNAME_OPTIONS, MAX_SHORT_TEXT_LENGTH } from '../constants';
 import {
   getAllNicknamesForSearch,
   getIncomingNicknamesForSearch,
@@ -41,11 +41,13 @@ function NicknameChipList({
   onUpdateAt,
   onRemoveAt,
   ariaLabel,
+  maxLength,
 }: {
   values: string[];
   onUpdateAt: (index: number, value: string) => void;
   onRemoveAt: (index: number) => void;
   ariaLabel: string;
+  maxLength?: number;
 }) {
   return (
     <ul className="nickname-chip-list">
@@ -55,6 +57,7 @@ function NicknameChipList({
             type="text"
             className="nickname-chip-input"
             value={value}
+            maxLength={maxLength}
             onChange={(e) => onUpdateAt(index, e.target.value)}
             aria-label={`${ariaLabel} ${index + 1}`}
           />
@@ -85,6 +88,7 @@ function NicknameMiniCard({
   onGenerate,
   generateTitle,
   ariaLabel,
+  nicknameMaxLength,
 }: {
   character: Character;
   values: string[];
@@ -98,6 +102,7 @@ function NicknameMiniCard({
   onGenerate?: () => void;
   generateTitle?: string;
   ariaLabel: string;
+  nicknameMaxLength?: number;
 }) {
   return (
     <li className="nickname-mini-card">
@@ -117,6 +122,7 @@ function NicknameMiniCard({
             onUpdateAt={onUpdateAt}
             onRemoveAt={onRemoveAt}
             ariaLabel={ariaLabel}
+            maxLength={nicknameMaxLength}
           />
         ) : (
           <p className="nickname-mini-empty">No nicknames yet</p>
@@ -278,6 +284,7 @@ export function NicknamePanel({
                 onUpdateAt={onUpdateDefaultAt}
                 onRemoveAt={onRemoveDefault}
                 ariaLabel="Default nickname"
+                maxLength={MAX_SHORT_TEXT_LENGTH}
               />
             )}
             <button
@@ -318,6 +325,7 @@ export function NicknamePanel({
                     }
                     generateTitle={`Generate nickname for ${target.name}`}
                     ariaLabel={`Nickname for ${target.name}`}
+                    nicknameMaxLength={MAX_SHORT_TEXT_LENGTH}
                   />
                 );
               })

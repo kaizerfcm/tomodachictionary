@@ -1,4 +1,5 @@
-import { MAX_PHRASES_PER_TYPE } from '../constants';
+import { MAX_PHRASES_PER_TYPE, MAX_SHORT_TEXT_LENGTH } from '../constants';
+import { isShortPhraseType } from '../lib/textLimits';
 import { PHRASE_TYPES, type PhraseType } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CommunityPhrasesButton } from './CommunityPhrasesButton';
@@ -34,6 +35,7 @@ export function PhraseSection({
 }: PhraseSectionProps) {
   const atLimit = phrases.length >= MAX_PHRASES_PER_TYPE;
   const showActions = communityEnabled || (hasApiKey && onGenerateAi);
+  const shortPhrase = isShortPhraseType(phraseType);
 
   return (
     <details className="phrase-section" open={phrases.length > 0}>
@@ -74,6 +76,7 @@ export function PhraseSection({
               type="text"
               className="phrase-input"
               value={phrase}
+              maxLength={shortPhrase ? MAX_SHORT_TEXT_LENGTH : undefined}
               onChange={(e) => onUpdate(index, e.target.value)}
               aria-label={`${label} phrase ${index + 1}`}
             />

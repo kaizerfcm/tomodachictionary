@@ -3,8 +3,7 @@ export type GridSort = 'name' | 'dateAdded';
 const KEYS = {
   sidebarList: 'tomodachi.sidebarListOpen',
   sidebarCollapsed: 'tomodict.sidebarCollapsed',
-  outgoingNick: 'tomodachi.outgoingNickOpen',
-  incomingNick: 'tomodachi.incomingNickOpen',
+  islandersNick: 'tomodict.islandersNickOpen',
   gridSort: 'tomodachi.gridSort',
 } as const;
 
@@ -43,20 +42,23 @@ export function setSidebarCollapsed(collapsed: boolean): void {
   writeBool(KEYS.sidebarCollapsed, collapsed);
 }
 
-export function getOutgoingNickOpen(): boolean {
-  return readBool(KEYS.outgoingNick, false);
+export function getIslandersNickOpen(): boolean {
+  try {
+    const v = localStorage.getItem(KEYS.islandersNick);
+    if (v === '1') return true;
+    if (v === '0') return false;
+    const legacy =
+      localStorage.getItem('tomodachi.outgoingNickOpen') === '1' ||
+      localStorage.getItem('tomodachi.incomingNickOpen') === '1';
+    if (legacy) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
 }
 
-export function setOutgoingNickOpen(open: boolean): void {
-  writeBool(KEYS.outgoingNick, open);
-}
-
-export function getIncomingNickOpen(): boolean {
-  return readBool(KEYS.incomingNick, false);
-}
-
-export function setIncomingNickOpen(open: boolean): void {
-  writeBool(KEYS.incomingNick, open);
+export function setIslandersNickOpen(open: boolean): void {
+  writeBool(KEYS.islandersNick, open);
 }
 
 export function getGridSort(): GridSort {

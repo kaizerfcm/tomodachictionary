@@ -30,14 +30,11 @@ interface CharacterEditorProps {
   onGeneratePhrase: (type: PhraseType) => void;
   onGenerateDefaultNickname: () => void;
   onGenerateOutgoingNickname: (targetId: string) => void;
-  onGenerateIncomingNickname: (speakerId: string) => void;
   onOpenCharacter: (id: string) => void;
   nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
-  outgoingNickOpen: boolean;
-  incomingNickOpen: boolean;
-  onOutgoingNickOpenChange: (open: boolean) => void;
-  onIncomingNickOpenChange: (open: boolean) => void;
+  islandersNickOpen: boolean;
+  onIslandersNickOpenChange: (open: boolean) => void;
 }
 
 export function CharacterEditor({
@@ -64,13 +61,10 @@ export function CharacterEditor({
   onGeneratePhrase,
   onGenerateDefaultNickname,
   onGenerateOutgoingNickname,
-  onGenerateIncomingNickname,
   onOpenCharacter,
   nicknameFocusCharacterId,
-  outgoingNickOpen,
-  incomingNickOpen,
-  onOutgoingNickOpenChange,
-  onIncomingNickOpenChange,
+  islandersNickOpen,
+  onIslandersNickOpenChange,
   communityPhrasesEnabled,
 }: CharacterEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -162,10 +156,8 @@ export function CharacterEditor({
         subject={character}
         allCharacters={allCharacters}
         focusCharacterId={nicknameFocusCharacterId}
-        outgoingOpen={outgoingNickOpen}
-        incomingOpen={incomingNickOpen}
-        onOutgoingOpenChange={onOutgoingNickOpenChange}
-        onIncomingOpenChange={onIncomingNickOpenChange}
+        islandersOpen={islandersNickOpen}
+        onIslandersOpenChange={onIslandersNickOpenChange}
         onOpenCharacter={onOpenCharacter}
         onUpdateDefaultAt={onUpdateNicknameDefaultAt}
         onAddDefault={() => onAddNicknameDefault()}
@@ -180,7 +172,6 @@ export function CharacterEditor({
         generatingKey={generatingKey}
         onGenerateDefault={onGenerateDefaultNickname}
         onGenerateOutgoing={onGenerateOutgoingNickname}
-        onGenerateIncoming={onGenerateIncomingNickname}
       />
     </main>
   );

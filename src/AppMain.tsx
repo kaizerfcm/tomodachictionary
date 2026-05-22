@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getGridSort,
-  getIncomingNickOpen,
-  getOutgoingNickOpen,
+  getIslandersNickOpen,
   setGridSort,
-  setIncomingNickOpen,
-  setOutgoingNickOpen,
+  setIslandersNickOpen,
   type GridSort,
 } from './lib/uiPrefs';
 import { sortCharacters } from './lib/sortCharacters';
@@ -31,7 +29,6 @@ import { GeminiError } from './lib/gemini/client';
 import {
   buildFullCharacterPrompt,
   buildOneDefaultNicknamePrompt,
-  buildOneIncomingNicknamePrompt,
   buildOnePhrasePrompt,
   buildOneTargetNicknamePrompt,
 } from './lib/gemini/prompts';
@@ -79,11 +76,8 @@ export function AppMain({
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
   const [gridSort, setGridSortState] = useState<GridSort>(getGridSort);
-  const [outgoingNickOpen, setOutgoingNickOpenState] = useState(
-    getOutgoingNickOpen,
-  );
-  const [incomingNickOpen, setIncomingNickOpenState] = useState(
-    getIncomingNickOpen,
+  const [islandersNickOpen, setIslandersNickOpenState] = useState(
+    getIslandersNickOpen,
   );
   const [nicknameFilterFromId, setNicknameFilterFromId] = useState<string | null>(
     null,
@@ -197,14 +191,9 @@ export function AppMain({
     setGridSort(sort);
   };
 
-  const handleOutgoingNickOpenChange = (open: boolean) => {
-    setOutgoingNickOpenState(open);
-    setOutgoingNickOpen(open);
-  };
-
-  const handleIncomingNickOpenChange = (open: boolean) => {
-    setIncomingNickOpenState(open);
-    setIncomingNickOpen(open);
+  const handleIslandersNickOpenChange = (open: boolean) => {
+    setIslandersNickOpenState(open);
+    setIslandersNickOpen(open);
   };
 
   const handleExportJson = () => {
@@ -348,24 +337,6 @@ export function AppMain({
     [addOutgoingNicknameForTarget, apiKey, characters, runAi, selected],
   );
 
-  const handleGenerateIncomingNickname = useCallback(
-    async (speakerId: string) => {
-      if (!selected) return;
-      const speaker = characters.find((c) => c.id === speakerId);
-      if (!speaker) return;
-      const current = speaker.nicknames[selected.id] ?? [];
-      if (current.length >= MAX_NICKNAME_OPTIONS) return;
-      const nick = await runAi(`nick:in:${speakerId}`, () =>
-        generateOneNickname(
-          apiKey,
-          buildOneIncomingNicknamePrompt(selected, speaker, characters),
-        ),
-      );
-      if (nick) addNicknameForTarget(speakerId, selected.id, nick);
-    },
-    [addNicknameForTarget, apiKey, characters, runAi, selected],
-  );
-
   const handleDeleteCharacter = useCallback(() => {
     if (!selected) return;
     removeCharacter(selected.id);
@@ -489,13 +460,10 @@ export function AppMain({
               onGeneratePhrase={handleGeneratePhrase}
               onGenerateDefaultNickname={handleGenerateDefaultNickname}
               onGenerateOutgoingNickname={handleGenerateOutgoingNickname}
-              onGenerateIncomingNickname={handleGenerateIncomingNickname}
               onOpenCharacter={handleOpenFromNicknames}
               communityPhrasesEnabled={communityPhrasesEnabled}
-              outgoingNickOpen={outgoingNickOpen}
-              incomingNickOpen={incomingNickOpen}
-              onOutgoingNickOpenChange={handleOutgoingNickOpenChange}
-              onIncomingNickOpenChange={handleIncomingNickOpenChange}
+              islandersNickOpen={islandersNickOpen}
+              onIslandersNickOpenChange={handleIslandersNickOpenChange}
             />
           ) : (
             <CharacterGrid

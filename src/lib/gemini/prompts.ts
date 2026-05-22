@@ -1,7 +1,7 @@
 import { MAX_SHORT_TEXT_LENGTH } from '../../constants';
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
-import { getAllNicknamesForSearch, getEffectiveNickname } from '../nicknames';
+import { getEffectiveNickname } from '../nicknames';
 import { isShortPhraseType } from '../textLimits';
 
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
@@ -79,10 +79,9 @@ ${SHORT_TEXT_LIMIT_RULES}
 - Provide exactly 3 distinct options per phrase type (triplets).
 - nicknameDefault: exactly 3 default nicknames for strangers / new acquaintances (canon-appropriate).
 ${hasCast
-    ? `- byTargetName: for EACH existing cast member listed, 3 nickname options "${newName}" would use (canon-aware).
-- incoming.bySpeakerName: for EACH existing cast member, 3 nickname options THEY would use for "${newName}" (canon-aware).`
-    : `- byTargetName: use {} (no other islanders yet).
-- incoming.bySpeakerName: use {} (no other islanders yet).`}
+    ? `- byTargetName: for EACH existing cast member listed, 3 nickname options "${newName}" would use (canon-aware).`
+    : `- byTargetName: use {} (no other islanders yet).`}
+- Do NOT generate incoming.bySpeakerName — other islanders' nicknames for "${newName}" are configured on their profiles. Always return "incoming": { "bySpeakerName": {} }.
 
 Return ONLY valid JSON:
 {
@@ -172,23 +171,3 @@ ${JSON.stringify(existing.length ? existing : [getEffectiveNickname(character, t
 Return ONLY valid JSON: { "nickname": "one nickname" }`;
 }
 
-export function buildOneIncomingNicknamePrompt(
-  subject: Character,
-  speaker: Character,
-  allCharacters: Character[],
-): string {
-  const existing = speaker.nicknames[subject.id] ?? [];
-  return `Write ONE nickname "${speaker.name}" would use to address "${subject.name}" (from ${speaker.name}'s voice).
-
-Cast context:
-${buildIslandSnapshot(allCharacters, subject.id)}
-
-EXISTING nicknames ${speaker.name} uses for ${subject.name} (do NOT duplicate):
-${JSON.stringify(
-    existing.length
-      ? existing
-      : getAllNicknamesForSearch(speaker, subject).filter(Boolean),
-  )}
-
-Return ONLY valid JSON: { "nickname": "one nickname" }`;
-}

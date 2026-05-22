@@ -27,6 +27,19 @@ export function getIncomingNicknamesForSearch(
   return [...incoming, ...subjectCallsSpeaker, speaker.name, subject.name];
 }
 
+/** Both directions for one islander pair (filter / search). */
+export function getPairNicknamesForSearch(
+  subject: Character,
+  other: Character,
+): string[] {
+  return [
+    ...getAllNicknamesForSearch(subject, other),
+    ...(other.nicknames[subject.id] ?? []),
+    other.name,
+    subject.name,
+  ];
+}
+
 export function getEffectiveNickname(
   speaker: Character,
   target: Character,

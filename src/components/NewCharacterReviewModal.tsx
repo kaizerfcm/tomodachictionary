@@ -47,15 +47,6 @@ export function NewCharacterReviewModal({
         ]),
       ),
   );
-  const [incomingPicks, setIncomingPicks] = useState<Record<string, boolean[]>>(
-    () =>
-      Object.fromEntries(
-        Object.keys(generation.incoming.bySpeakerName).map((n) => [
-          n,
-          tripletPicks(),
-        ]),
-      ),
-  );
 
   const nameToId = useMemo(
     () => new Map(existingCharacters.map((c) => [c.name, c.id])),
@@ -91,18 +82,7 @@ export function NewCharacterReviewModal({
       nicknames,
     };
 
-    const incomingBySpeakerId: Record<string, string[]> = {};
-    for (const [speakerName, triplet] of Object.entries(
-      generation.incoming.bySpeakerName,
-    )) {
-      const id = nameToId.get(speakerName);
-      if (!id) continue;
-      const picks = incomingPicks[speakerName] ?? tripletPicks();
-      const selected = triplet.filter((_, i) => picks[i]);
-      if (selected.length) incomingBySpeakerId[id] = selected;
-    }
-
-    onConfirm({ character: char, incomingBySpeakerId });
+    onConfirm({ character: char, incomingBySpeakerId: {} });
   };
 
   return (
@@ -123,7 +103,8 @@ export function NewCharacterReviewModal({
     >
       <p className="modal-intro">
         Check the lines to add. You can keep all three per row or pick only the
-        ones you like — multiple nicknames per person are supported.
+        ones you like. How other islanders call {name} is set on each of their
+        profiles after adding.
       </p>
       <section className="review-section">
         <h3>Dialogue phrases</h3>
@@ -169,26 +150,6 @@ export function NewCharacterReviewModal({
                   const cur = [...(p[targetName] ?? tripletPicks())];
                   cur[i] = !cur[i];
                   return { ...p, [targetName]: cur };
-                })
-              }
-            />
-          ),
-        )}
-      </section>
-      <section className="review-section">
-        <h3>How others call {name}</h3>
-        {Object.entries(generation.incoming.bySpeakerName).map(
-          ([speakerName, triplet]) => (
-            <OptionTripletMulti
-              key={speakerName}
-              label={speakerName}
-              options={triplet}
-              selectedIndices={incomingPicks[speakerName] ?? tripletPicks()}
-              onToggle={(i) =>
-                setIncomingPicks((p) => {
-                  const cur = [...(p[speakerName] ?? tripletPicks())];
-                  cur[i] = !cur[i];
-                  return { ...p, [speakerName]: cur };
                 })
               }
             />

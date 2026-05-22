@@ -5,6 +5,5 @@ export function aiSuccessMessage(key: string, result: unknown): string | null {
   if (key === 'nick:default' || key.startsWith('nick:out:')) {
     return 'Nickname generated';
   }
-  if (key.startsWith('nick:in:')) return 'Nickname generated';
   return 'Generation complete';
 }

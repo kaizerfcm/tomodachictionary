@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MAX_NICKNAME_OPTIONS, MAX_SHORT_TEXT_LENGTH } from '../constants';
-import {
-  getAllNicknamesForSearch,
-  getIncomingNicknamesForSearch,
-} from '../lib/nicknames';
+import { getPairNicknamesForSearch } from '../lib/nicknames';
 import type { Character } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CharacterAvatar } from './CharacterAvatar';
@@ -13,12 +10,9 @@ const MAX_VISIBLE = 24;
 interface NicknamePanelProps {
   subject: Character;
   allCharacters: Character[];
-  /** When set (e.g. after opening another character from this panel), pre-fills the list filter. */
   focusCharacterId?: string | null;
-  outgoingOpen: boolean;
-  incomingOpen: boolean;
-  onOutgoingOpenChange: (open: boolean) => void;
-  onIncomingOpenChange: (open: boolean) => void;
+  islandersOpen: boolean;
+  onIslandersOpenChange: (open: boolean) => void;
   onOpenCharacter: (id: string) => void;
   onUpdateDefaultAt: (index: number, value: string) => void;
   onAddDefault: () => void;
@@ -33,7 +27,6 @@ interface NicknamePanelProps {
   generatingKey?: string | null;
   onGenerateDefault?: () => void;
   onGenerateOutgoing?: (targetId: string) => void;
-  onGenerateIncoming?: (speakerId: string) => void;
 }
 
 function NicknameChipList({
@@ -75,75 +68,111 @@ function NicknameChipList({
   );
 }
 
-function NicknameMiniCard({
-  character,
-  values,
-  canAdd,
-  aiBusy,
+function IslanderNicknameCard({
+  subject,
+  other,
+  outgoingValues,
+  incomingValues,
   hasApiKey,
+  generatingKey,
   onOpenCharacter,
-  onAdd,
-  onUpdateAt,
-  onRemoveAt,
-  onGenerate,
-  generateTitle,
-  ariaLabel,
-  nicknameMaxLength,
+  onUpdateOutgoingAt,
+  onRemoveOutgoingAt,
+  onAddOutgoing,
+  onUpdateIncomingAt,
+  onRemoveIncomingAt,
+  onAddIncoming,
+  onGenerateOutgoing,
 }: {
-  character: Character;
-  values: string[];
-  canAdd: boolean;
-  aiBusy?: boolean;
+  subject: Character;
+  other: Character;
+  outgoingValues: string[];
+  incomingValues: string[];
   hasApiKey?: boolean;
+  generatingKey?: string | null;
   onOpenCharacter: (id: string) => void;
-  onAdd: () => void;
-  onUpdateAt: (index: number, value: string) => void;
-  onRemoveAt: (index: number) => void;
-  onGenerate?: () => void;
-  generateTitle?: string;
-  ariaLabel: string;
-  nicknameMaxLength?: number;
+  onUpdateOutgoingAt: (index: number, value: string) => void;
+  onRemoveOutgoingAt: (index: number) => void;
+  onAddOutgoing: () => void;
+  onUpdateIncomingAt: (index: number, value: string) => void;
+  onRemoveIncomingAt: (index: number) => void;
+  onAddIncoming: () => void;
+  onGenerateOutgoing?: () => void;
 }) {
+  const canAddOutgoing = outgoingValues.length < MAX_NICKNAME_OPTIONS;
+  const canAddIncoming = incomingValues.length < MAX_NICKNAME_OPTIONS;
+  const outgoingBusy = generatingKey === `nick:out:${other.id}`;
+
   return (
-    <li className="nickname-mini-card">
+    <li className="nickname-pair-card">
       <button
         type="button"
-        className="nickname-mini-card-head"
-        onClick={() => onOpenCharacter(character.id)}
-        title={`Open ${character.name}`}
+        className="nickname-pair-card-head"
+        onClick={() => onOpenCharacter(other.id)}
+        title={`Open ${other.name}`}
       >
-        <CharacterAvatar character={character} size="sm" />
-        <span className="nickname-mini-name">{character.name}</span>
+        <CharacterAvatar character={other} size="sm" />
+        <span className="nickname-pair-name">{other.name}</span>
       </button>
-      <div className="nickname-mini-card-body">
-        {values.length > 0 ? (
-          <NicknameChipList
-            values={values}
-            onUpdateAt={onUpdateAt}
-            onRemoveAt={onRemoveAt}
-            ariaLabel={ariaLabel}
-            maxLength={nicknameMaxLength}
-          />
-        ) : (
-          <p className="nickname-mini-empty">No nicknames yet</p>
-        )}
-        <div className="nickname-mini-card-actions">
-          {hasApiKey && onGenerate && (
-            <AiSparkButton
-              busy={aiBusy}
-              disabled={!canAdd}
-              title={generateTitle ?? 'Generate nickname'}
-              onClick={onGenerate}
+      <div className="nickname-pair-body">
+        <div className="nickname-pair-row">
+          <div className="nickname-pair-row-head">
+            <span className="nickname-pair-label">{subject.name} calls them</span>
+            <div className="nickname-pair-row-actions">
+              {hasApiKey && onGenerateOutgoing && (
+                <AiSparkButton
+                  busy={outgoingBusy}
+                  disabled={!canAddOutgoing}
+                  title={`Generate nickname for ${other.name}`}
+                  onClick={onGenerateOutgoing}
+                />
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={!canAddOutgoing}
+                onClick={onAddOutgoing}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          {outgoingValues.length > 0 ? (
+            <NicknameChipList
+              values={outgoingValues}
+              onUpdateAt={onUpdateOutgoingAt}
+              onRemoveAt={onRemoveOutgoingAt}
+              ariaLabel={`${subject.name} calls ${other.name}`}
+              maxLength={MAX_SHORT_TEXT_LENGTH}
             />
+          ) : (
+            <p className="nickname-mini-empty">None yet</p>
           )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={!canAdd}
-            onClick={onAdd}
-          >
-            + Add
-          </button>
+        </div>
+        <div className="nickname-pair-row">
+          <div className="nickname-pair-row-head">
+            <span className="nickname-pair-label">They call {subject.name}</span>
+            <div className="nickname-pair-row-actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={!canAddIncoming}
+                onClick={onAddIncoming}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          {incomingValues.length > 0 ? (
+            <NicknameChipList
+              values={incomingValues}
+              onUpdateAt={onUpdateIncomingAt}
+              onRemoveAt={onRemoveIncomingAt}
+              ariaLabel={`${other.name} calls ${subject.name}`}
+            />
+          ) : (
+            <p className="nickname-mini-empty">None yet — edit on their profile or add here</p>
+          )}
         </div>
       </div>
     </li>
@@ -175,19 +204,15 @@ function CollapsibleSummary({
   );
 }
 
-function filterOthers(
+function filterIslanders(
   others: Character[],
   subject: Character,
   needle: string,
-  mode: 'outgoing' | 'incoming',
 ): Character[] {
   if (!needle) return others;
   const n = needle.toLowerCase();
   return others.filter((c) => {
-    const haystack =
-      mode === 'outgoing'
-        ? getAllNicknamesForSearch(subject, c)
-        : getIncomingNicknamesForSearch(c, subject);
+    const haystack = getPairNicknamesForSearch(subject, c);
     return (
       c.name.toLowerCase().includes(n) ||
       haystack.join(' ').toLowerCase().includes(n)
@@ -199,10 +224,8 @@ export function NicknamePanel({
   subject,
   allCharacters,
   focusCharacterId,
-  outgoingOpen,
-  incomingOpen,
-  onOutgoingOpenChange,
-  onIncomingOpenChange,
+  islandersOpen,
+  onIslandersOpenChange,
   onOpenCharacter,
   onUpdateDefaultAt,
   onAddDefault,
@@ -217,7 +240,6 @@ export function NicknamePanel({
   generatingKey,
   onGenerateDefault,
   onGenerateOutgoing,
-  onGenerateIncoming,
 }: NicknamePanelProps) {
   const [filter, setFilter] = useState('');
 
@@ -233,14 +255,8 @@ export function NicknamePanel({
   );
 
   const needle = filter.trim();
-
-  const visibleOutgoing = useMemo(
-    () => filterOthers(others, subject, needle, 'outgoing'),
-    [others, subject, needle],
-  );
-
-  const visibleIncoming = useMemo(
-    () => filterOthers(others, subject, needle, 'incoming'),
+  const visibleIslanders = useMemo(
+    () => filterIslanders(others, subject, needle),
     [others, subject, needle],
   );
 
@@ -255,20 +271,22 @@ export function NicknamePanel({
         placeholder="Filter islanders…"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        aria-label="Filter nickname lists"
+        aria-label="Filter islander nicknames"
       />
 
-      <details className="nicknames-collapsible" open={outgoingOpen}>
+      <details className="nicknames-collapsible" open={islandersOpen}>
         <CollapsibleSummary
-          open={outgoingOpen}
-          onToggle={onOutgoingOpenChange}
+          open={islandersOpen}
+          onToggle={onIslandersOpenChange}
         >
-          What {subject.name} calls others
+          Nicknames with islanders
         </CollapsibleSummary>
         <div className="nicknames-collapsible-body">
           <div className="nickname-compact-block">
             <div className="nickname-compact-head">
-              <span className="nickname-compact-label">Defaults</span>
+              <span className="nickname-compact-label">
+                Defaults (new islanders)
+              </span>
               {hasApiKey && onGenerateDefault && (
                 <AiSparkButton
                   busy={generatingKey === 'nick:default'}
@@ -297,82 +315,37 @@ export function NicknamePanel({
             </button>
           </div>
 
-          <ul className="nickname-mini-grid">
-            {visibleOutgoing.length === 0 ? (
+          <ul className="nickname-pair-grid">
+            {visibleIslanders.length === 0 ? (
               <li className="empty-hint">No matches.</li>
             ) : (
-              visibleOutgoing.slice(0, MAX_VISIBLE).map((target) => {
-                const options = subject.nicknames[target.id] ?? [];
-                const canAdd = options.length < MAX_NICKNAME_OPTIONS;
-                return (
-                  <NicknameMiniCard
-                    key={target.id}
-                    character={target}
-                    values={options}
-                    canAdd={canAdd}
-                    aiBusy={generatingKey === `nick:out:${target.id}`}
-                    hasApiKey={hasApiKey}
-                    onOpenCharacter={onOpenCharacter}
-                    onAdd={() => onAddOutgoing(target.id)}
-                    onUpdateAt={(i, v) =>
-                      onUpdateOutgoingAt(target.id, i, v)
-                    }
-                    onRemoveAt={(i) => onRemoveOutgoing(target.id, i)}
-                    onGenerate={
-                      onGenerateOutgoing
-                        ? () => onGenerateOutgoing(target.id)
-                        : undefined
-                    }
-                    generateTitle={`Generate nickname for ${target.name}`}
-                    ariaLabel={`Nickname for ${target.name}`}
-                    nicknameMaxLength={MAX_SHORT_TEXT_LENGTH}
-                  />
-                );
-              })
-            )}
-          </ul>
-        </div>
-      </details>
-
-      <details className="nicknames-collapsible" open={incomingOpen}>
-        <CollapsibleSummary
-          open={incomingOpen}
-          onToggle={onIncomingOpenChange}
-        >
-          What others call {subject.name}
-        </CollapsibleSummary>
-        <div className="nicknames-collapsible-body">
-          <ul className="nickname-mini-grid">
-            {visibleIncoming.length === 0 ? (
-              <li className="empty-hint">No matches.</li>
-            ) : (
-              visibleIncoming.slice(0, MAX_VISIBLE).map((speaker) => {
-                const options = speaker.nicknames[subject.id] ?? [];
-                const canAdd = options.length < MAX_NICKNAME_OPTIONS;
-                return (
-                  <NicknameMiniCard
-                    key={speaker.id}
-                    character={speaker}
-                    values={options}
-                    canAdd={canAdd}
-                    aiBusy={generatingKey === `nick:in:${speaker.id}`}
-                    hasApiKey={hasApiKey}
-                    onOpenCharacter={onOpenCharacter}
-                    onAdd={() => onAddIncoming(speaker.id)}
-                    onUpdateAt={(i, v) =>
-                      onUpdateIncomingAt(speaker.id, i, v)
-                    }
-                    onRemoveAt={(i) => onRemoveIncoming(speaker.id, i)}
-                    onGenerate={
-                      onGenerateIncoming
-                        ? () => onGenerateIncoming(speaker.id)
-                        : undefined
-                    }
-                    generateTitle={`Generate how ${speaker.name} calls ${subject.name}`}
-                    ariaLabel={`${speaker.name} calls ${subject.name}`}
-                  />
-                );
-              })
+              visibleIslanders.slice(0, MAX_VISIBLE).map((other) => (
+                <IslanderNicknameCard
+                  key={other.id}
+                  subject={subject}
+                  other={other}
+                  outgoingValues={subject.nicknames[other.id] ?? []}
+                  incomingValues={other.nicknames[subject.id] ?? []}
+                  hasApiKey={hasApiKey}
+                  generatingKey={generatingKey}
+                  onOpenCharacter={onOpenCharacter}
+                  onUpdateOutgoingAt={(i, v) =>
+                    onUpdateOutgoingAt(other.id, i, v)
+                  }
+                  onRemoveOutgoingAt={(i) => onRemoveOutgoing(other.id, i)}
+                  onAddOutgoing={() => onAddOutgoing(other.id)}
+                  onUpdateIncomingAt={(i, v) =>
+                    onUpdateIncomingAt(other.id, i, v)
+                  }
+                  onRemoveIncomingAt={(i) => onRemoveIncoming(other.id, i)}
+                  onAddIncoming={() => onAddIncoming(other.id)}
+                  onGenerateOutgoing={
+                    onGenerateOutgoing
+                      ? () => onGenerateOutgoing(other.id)
+                      : undefined
+                  }
+                />
+              ))
             )}
           </ul>
         </div>

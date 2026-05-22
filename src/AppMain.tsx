@@ -40,12 +40,7 @@ import {
   buildOneDefaultNicknamePrompt,
   buildOnePhrasePrompt,
 } from './lib/gemini/prompts';
-import {
-  generateLocalDefaultNickname,
-  generateLocalMissingNicknames,
-  generateLocalPhrase,
-  generateQuickFillCharacter,
-} from './lib/localGeneration';
+import { generateQuickFillCharacter } from './lib/localGeneration';
 import { canUseCommunityNicknames } from './lib/communityNicknames';
 import {
   countMissingNicknamePairs,
@@ -137,14 +132,7 @@ export function AppMain({
   const accountEmail = userEmail ? formatAccountLabel(userEmail) : undefined;
   const payment = getPaymentConfig();
   const signedIn = storageMode === 'cloud' && Boolean(userId);
-  const {
-    apiKey,
-    setApiKey,
-    provider,
-    setProvider,
-    hasApiKey,
-    aiSettings,
-  } = useSettings(signedIn);
+  const { apiKey, setApiKey, hasApiKey } = useSettings();
   const communityPhrasesEnabled = canUseCommunityPhrases(signedIn);
   const communityNicknamesEnabled = canUseCommunityNicknames(signedIn);
 
@@ -305,7 +293,7 @@ export function AppMain({
       setShowNewCharModal(false);
       const generation = await runAi('newchar', () =>
         generateFullCharacter(
-          aiSettings,
+          apiKey,
           buildFullCharacterPrompt(name, characters, extra),
         ),
       );
@@ -313,113 +301,37 @@ export function AppMain({
         setNewCharReview({ name, extra, generation });
       }
     },
-    [aiSettings, characters, runAi],
+    [apiKey, characters, runAi],
   );
 
-  const handleSuggestLocalPhrase = useCallback(
-    (type: PhraseType) => {
-      if (!selected) return;
-      if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
-      setGeneratingKey(`phrase:local:${type}`);
-      try {
-        const line = generateLocalPhrase(selected, type);
-        addPhrase(selected.id, type, line);
-        setAiNotice({ kind: 'success', message: 'Line suggested' });
-      } finally {
-        setGeneratingKey(null);
-      }
-    },
-    [addPhrase, selected],
-  );
-
-  const handleCanonAiPhrase = useCallback(
+  const handleGeneratePhrase = useCallback(
     async (type: PhraseType) => {
       if (!selected) return;
       if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
       const line = await runAi(`phrase:${type}`, () =>
         generateOnePhrase(
-          aiSettings,
+          apiKey,
           buildOnePhrasePrompt(selected, characters, type),
           type,
         ),
       );
       if (line) addPhrase(selected.id, type, line);
     },
-    [addPhrase, aiSettings, characters, runAi, selected],
+    [addPhrase, apiKey, characters, runAi, selected],
   );
 
-  const handleSuggestLocalDefaultNickname = useCallback(() => {
-    if (!selected) return;
-    if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
-    setGeneratingKey('nick:local:default');
-    try {
-      const nick = generateLocalDefaultNickname(selected);
-      addNicknameDefault(selected.id, nick);
-      setAiNotice({ kind: 'success', message: 'Nickname suggested' });
-    } finally {
-      setGeneratingKey(null);
-    }
-  }, [addNicknameDefault, selected]);
-
-  const handleCanonAiDefaultNickname = useCallback(async () => {
+  const handleGenerateDefaultNickname = useCallback(async () => {
     if (!selected) return;
     if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
     const nick = await runAi('nick:default', () =>
       generateOneNickname(
-        aiSettings,
+        apiKey,
         buildOneDefaultNicknamePrompt(selected, characters),
         true,
       ),
     );
     if (nick) addNicknameDefault(selected.id, nick);
-  }, [addNicknameDefault, aiSettings, characters, runAi, selected]);
-
-  const handleSuggestLocalMissingNicknames = useCallback(() => {
-    if (!selected) return;
-    const missing = getMissingNicknamePairs(selected, characters);
-    if (countMissingNicknamePairs(missing) === 0) {
-      setAiNotice({
-        kind: 'success',
-        message: 'All islander nicknames are already set',
-      });
-      return;
-    }
-    setGeneratingKey('nick:local:missing');
-    try {
-      const generated = generateLocalMissingNicknames(selected, missing);
-      const nameToId = new Map(characters.map((c) => [c.name, c.id]));
-      let added = 0;
-      for (const [name, nick] of Object.entries(generated.outgoing)) {
-        const targetId = nameToId.get(name);
-        if (!targetId || !nick.trim()) continue;
-        if ((selected.nicknames[targetId] ?? []).some((v) => v.trim())) continue;
-        addOutgoingNicknameForTarget(selected.id, targetId, nick);
-        added += 1;
-      }
-      for (const [name, nick] of Object.entries(generated.incoming)) {
-        const speakerId = nameToId.get(name);
-        if (!speakerId || !nick.trim()) continue;
-        const speaker = characters.find((c) => c.id === speakerId);
-        if ((speaker?.nicknames[selected.id] ?? []).some((v) => v.trim()))
-          continue;
-        addNicknameForTarget(speakerId, selected.id, nick);
-        added += 1;
-      }
-      if (added > 0) {
-        setAiNotice({
-          kind: 'success',
-          message: `Suggested ${added} nickname${added === 1 ? '' : 's'}`,
-        });
-      }
-    } finally {
-      setGeneratingKey(null);
-    }
-  }, [
-    addNicknameForTarget,
-    addOutgoingNicknameForTarget,
-    characters,
-    selected,
-  ]);
+  }, [addNicknameDefault, apiKey, characters, runAi, selected]);
 
   const handleConfirmNewCharacter = useCallback(
     (result: {
@@ -433,7 +345,7 @@ export function AppMain({
     [addCharacterFull, handleSelectCharacter],
   );
 
-  const handleCanonAiMissingNicknames = useCallback(async () => {
+  const handleGenerateMissingNicknames = useCallback(async () => {
     if (!selected) return;
     const missing = getMissingNicknamePairs(selected, characters);
     if (countMissingNicknamePairs(missing) === 0) {
@@ -445,7 +357,7 @@ export function AppMain({
     }
     const generated = await runAi('nick:missing', () =>
       generateMissingIslandNicknames(
-        aiSettings,
+        apiKey,
         buildMissingIslandNicknamesPrompt(selected, characters, missing),
       ),
     );
@@ -480,7 +392,7 @@ export function AppMain({
   }, [
     addNicknameForTarget,
     addOutgoingNicknameForTarget,
-    aiSettings,
+    apiKey,
     characters,
     runAi,
     selected,
@@ -511,11 +423,8 @@ export function AppMain({
   if (view === 'config') {
     return (
       <ConfigPage
-        provider={provider}
-        onProviderChange={setProvider}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
-        signedIn={signedIn}
         accountEmail={accountEmail}
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
@@ -618,12 +527,9 @@ export function AppMain({
               onRemoveIncoming={(speakerId, index) =>
                 removeNicknameAt(speakerId, selected.id, index)
               }
-              onSuggestLocalPhrase={handleSuggestLocalPhrase}
-              onCanonAiPhrase={handleCanonAiPhrase}
-              onSuggestLocalDefaultNickname={handleSuggestLocalDefaultNickname}
-              onCanonAiDefaultNickname={handleCanonAiDefaultNickname}
-              onSuggestLocalMissingNicknames={handleSuggestLocalMissingNicknames}
-              onCanonAiMissingNicknames={handleCanonAiMissingNicknames}
+              onGeneratePhrase={handleGeneratePhrase}
+              onGenerateDefaultNickname={handleGenerateDefaultNickname}
+              onGenerateMissingNicknames={handleGenerateMissingNicknames}
               onOpenCharacter={handleOpenFromNicknames}
               communityPhrasesEnabled={communityPhrasesEnabled}
               communityNicknamesEnabled={communityNicknamesEnabled}

@@ -3,7 +3,6 @@ import { isShortPhraseType } from '../lib/textLimits';
 import { PHRASE_TYPES, type PhraseType } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CommunityPhrasesButton } from './CommunityPhrasesButton';
-import { LocalSuggestButton } from './LocalSuggestButton';
 
 interface PhraseSectionProps {
   label: string;
@@ -17,8 +16,7 @@ interface PhraseSectionProps {
   onRemove: (index: number) => void;
   hasApiKey?: boolean;
   aiBusy?: boolean;
-  onSuggestLocal?: () => void;
-  onCanonAi?: () => void;
+  onGenerateAi?: () => void;
 }
 
 export function PhraseSection({
@@ -33,12 +31,10 @@ export function PhraseSection({
   onRemove,
   hasApiKey,
   aiBusy,
-  onSuggestLocal,
-  onCanonAi,
+  onGenerateAi,
 }: PhraseSectionProps) {
   const atLimit = phrases.length >= MAX_PHRASES_PER_TYPE;
-  const showActions =
-    communityEnabled || onSuggestLocal || (hasApiKey && onCanonAi);
+  const showActions = communityEnabled || (hasApiKey && onGenerateAi);
   const shortPhrase = isShortPhraseType(phraseType);
 
   return (
@@ -57,28 +53,16 @@ export function PhraseSection({
                 onAddPhrase={onAddText}
               />
             )}
-            {onSuggestLocal && (
-              <LocalSuggestButton
-                busy={aiBusy}
-                disabled={atLimit}
-                title={
-                  atLimit
-                    ? 'Phrase limit reached'
-                    : `Suggest one ${label.toLowerCase()} line (free)`
-                }
-                onClick={onSuggestLocal}
-              />
-            )}
-            {hasApiKey && onCanonAi && (
+            {hasApiKey && onGenerateAi && (
               <AiSparkButton
                 busy={aiBusy}
                 disabled={atLimit}
                 title={
                   atLimit
                     ? 'Phrase limit reached'
-                    : `Canon AI — one ${label.toLowerCase()} line (uses API)`
+                    : `Canon AI — one ${label.toLowerCase()} line from source`
                 }
-                onClick={onCanonAi}
+                onClick={onGenerateAi}
               />
             )}
           </span>
@@ -128,8 +112,7 @@ export function PhraseEditor({
   onRemovePhrase,
   hasApiKey,
   generatingKey,
-  onSuggestLocalPhrase,
-  onCanonAiPhrase,
+  onGeneratePhrase,
 }: {
   characterName: string;
   communityEnabled?: boolean;
@@ -139,8 +122,7 @@ export function PhraseEditor({
   onRemovePhrase: (type: PhraseType, index: number) => void;
   hasApiKey?: boolean;
   generatingKey?: string | null;
-  onSuggestLocalPhrase?: (type: PhraseType) => void;
-  onCanonAiPhrase?: (type: PhraseType) => void;
+  onGeneratePhrase?: (type: PhraseType) => void;
 }) {
   return (
     <section className="phrases-panel">
@@ -158,11 +140,8 @@ export function PhraseEditor({
           onRemove={(index) => onRemovePhrase(key, index)}
           hasApiKey={hasApiKey}
           aiBusy={generatingKey === `phrase:${key}`}
-          onSuggestLocal={
-            onSuggestLocalPhrase ? () => onSuggestLocalPhrase(key) : undefined
-          }
-          onCanonAi={
-            onCanonAiPhrase ? () => onCanonAiPhrase(key) : undefined
+          onGenerateAi={
+            onGeneratePhrase ? () => onGeneratePhrase(key) : undefined
           }
         />
       ))}

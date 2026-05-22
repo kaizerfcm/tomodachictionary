@@ -10,10 +10,9 @@ import type {
   GeneratedPhrases,
   Triplet,
 } from '../gemini/types';
-import { callModel } from './callModel';
+import { callGemini } from './callModel';
 import { AiError } from './errors';
 import { AI_TOKENS } from './tokenLimits';
-import type { AiSettings } from './types';
 
 function parseJson<T>(raw: string): T {
   const trimmed = raw.trim();
@@ -65,11 +64,11 @@ function assertLine(raw: Record<string, unknown>, key: string): string {
 }
 
 export async function generateFullCharacter(
-  settings: AiSettings,
+  apiKey: string,
   prompt: string,
 ): Promise<FullCharacterGeneration> {
   const raw = parseJson<Record<string, unknown>>(
-    await callModel(settings, {
+    await callGemini(apiKey, {
       prompt,
       maxOutputTokens: AI_TOKENS.fullCharacter,
     }),
@@ -104,12 +103,12 @@ export async function generateFullCharacter(
 }
 
 export async function generateOnePhrase(
-  settings: AiSettings,
+  apiKey: string,
   prompt: string,
   phraseType?: PhraseType,
 ): Promise<string> {
   const raw = parseJson<Record<string, unknown>>(
-    await callModel(settings, {
+    await callGemini(apiKey, {
       prompt,
       maxOutputTokens: AI_TOKENS.singleLine,
     }),
@@ -119,12 +118,12 @@ export async function generateOnePhrase(
 }
 
 export async function generateOneNickname(
-  settings: AiSettings,
+  apiKey: string,
   prompt: string,
   clampToShort = false,
 ): Promise<string> {
   const raw = parseJson<Record<string, unknown>>(
-    await callModel(settings, {
+    await callGemini(apiKey, {
       prompt,
       maxOutputTokens: AI_TOKENS.singleLine,
     }),
@@ -148,11 +147,11 @@ function parseNicknameStringMap(
 }
 
 export async function generateMissingIslandNicknames(
-  settings: AiSettings,
+  apiKey: string,
   prompt: string,
 ): Promise<GeneratedMissingNicknames> {
   const raw = parseJson<Record<string, unknown>>(
-    await callModel(settings, {
+    await callGemini(apiKey, {
       prompt,
       maxOutputTokens: AI_TOKENS.missingNicknames,
     }),

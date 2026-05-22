@@ -108,17 +108,15 @@ export function NewCharacterModal({
         onChange={(e) => setExtra(e.target.value)}
       />
       <p className="modal-intro">
-        <strong>Quick fill</strong> uses free local templates (playful, generic).
+        <strong>Quick fill</strong> adds generic starter lines (free).{' '}
         {hasApiKey ? (
           <>
-            {' '}
-            <strong>Canon AI</strong> uses your API key for source-accurate lines.
+            <strong>Canon AI</strong> quotes and paraphrases lines from their
+            source — put series/role in Extra (e.g. &quot;VA-11 Hall-A
+            bartender&quot;).
           </>
         ) : (
-          <>
-            {' '}
-            Add an API key in Configuration for canon-accurate generation.
-          </>
+          <>Add a Gemini key in Configuration for canon-accurate dialogue.</>
         )}
       </p>
     </Modal>

@@ -29,16 +29,13 @@ interface CharacterEditorProps {
   onUpdateIncomingAt: (speakerId: string, index: number, value: string) => void;
   onAddIncoming: (speakerId: string, value?: string) => void;
   onRemoveIncoming: (speakerId: string, index: number) => void;
-  onSuggestLocalPhrase: (type: PhraseType) => void;
-  onCanonAiPhrase: (type: PhraseType) => void;
-  onSuggestLocalDefaultNickname: () => void;
-  onCanonAiDefaultNickname: () => void;
-  onSuggestLocalMissingNicknames: () => void;
-  onCanonAiMissingNicknames: () => void;
-  communityNicknamesEnabled?: boolean;
+  onGeneratePhrase: (type: PhraseType) => void;
+  onGenerateDefaultNickname: () => void;
+  onGenerateMissingNicknames: () => void;
   onOpenCharacter: (id: string) => void;
   nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
+  communityNicknamesEnabled?: boolean;
   islandersNickOpen: boolean;
   onIslandersNickOpenChange: (open: boolean) => void;
 }
@@ -65,18 +62,15 @@ export function CharacterEditor({
   onUpdateIncomingAt,
   onAddIncoming,
   onRemoveIncoming,
-  onSuggestLocalPhrase,
-  onCanonAiPhrase,
-  onSuggestLocalDefaultNickname,
-  onCanonAiDefaultNickname,
-  onSuggestLocalMissingNicknames,
-  onCanonAiMissingNicknames,
-  communityNicknamesEnabled,
+  onGeneratePhrase,
+  onGenerateDefaultNickname,
+  onGenerateMissingNicknames,
   onOpenCharacter,
   nicknameFocusCharacterId,
   islandersNickOpen,
   onIslandersNickOpenChange,
   communityPhrasesEnabled,
+  communityNicknamesEnabled,
 }: CharacterEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [extraOpen, setExtraOpen] = useState(() =>
@@ -152,7 +146,7 @@ export function CharacterEditor({
                 value={character.extra ?? ''}
                 maxLength={MAX_CHARACTER_EXTRA_LENGTH}
                 rows={2}
-                placeholder="Source, series, tone…"
+                placeholder="Source, series, role… (helps canon AI)"
                 onChange={(e) => onExtraChange(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
               />
@@ -175,8 +169,10 @@ export function CharacterEditor({
         </div>
       </header>
       <p className="gen-inline-hint">
-        🎲 suggests lines free on-device. ✨ Canon AI uses your configured provider.
-        {communityPhrasesEnabled && ' 👥 loads phrases from other islands when signed in.'}
+        👥 Community suggestions when signed in (free). ✨ Canon AI uses Gemini and
+        pulls lines from source material — fill Extra with series/role for best
+        results.
+        {!hasApiKey && ' Add a Gemini key in Configuration to enable ✨.'}
       </p>
       <PhraseEditor
         characterName={character.name}
@@ -187,8 +183,7 @@ export function CharacterEditor({
         onRemovePhrase={onRemovePhrase}
         hasApiKey={hasApiKey}
         generatingKey={generatingKey}
-        onSuggestLocalPhrase={onSuggestLocalPhrase}
-        onCanonAiPhrase={onCanonAiPhrase}
+        onGeneratePhrase={onGeneratePhrase}
       />
       <NicknamePanel
         subject={character}
@@ -209,10 +204,8 @@ export function CharacterEditor({
         hasApiKey={hasApiKey}
         communityNicknamesEnabled={communityNicknamesEnabled}
         generatingKey={generatingKey}
-        onSuggestLocalDefault={onSuggestLocalDefaultNickname}
-        onCanonAiDefault={onCanonAiDefaultNickname}
-        onSuggestLocalMissing={onSuggestLocalMissingNicknames}
-        onCanonAiMissing={onCanonAiMissingNicknames}
+        onGenerateDefault={onGenerateDefaultNickname}
+        onGenerateMissing={onGenerateMissingNicknames}
         onAddDefaultNickname={(value) => onAddNicknameDefault(value)}
       />
     </main>

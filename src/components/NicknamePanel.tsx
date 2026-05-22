@@ -8,7 +8,6 @@ import { getPairNicknamesForSearch } from '../lib/nicknames';
 import type { Character } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CommunityNicknamesButton } from './CommunityNicknamesButton';
-import { LocalSuggestButton } from './LocalSuggestButton';
 import { CharacterAvatar } from './CharacterAvatar';
 
 const MAX_VISIBLE = 24;
@@ -32,10 +31,8 @@ interface NicknamePanelProps {
   hasApiKey?: boolean;
   communityNicknamesEnabled?: boolean;
   generatingKey?: string | null;
-  onSuggestLocalDefault?: () => void;
-  onCanonAiDefault?: () => void;
-  onSuggestLocalMissing?: () => void;
-  onCanonAiMissing?: () => void;
+  onGenerateDefault?: () => void;
+  onGenerateMissing?: () => void;
   onAddDefaultNickname?: (value: string) => void;
 }
 
@@ -234,10 +231,8 @@ export function NicknamePanel({
   hasApiKey,
   communityNicknamesEnabled,
   generatingKey,
-  onSuggestLocalDefault,
-  onCanonAiDefault,
-  onSuggestLocalMissing,
-  onCanonAiMissing,
+  onGenerateDefault,
+  onGenerateMissing,
   onAddDefaultNickname,
 }: NicknamePanelProps) {
   const [filter, setFilter] = useState('');
@@ -301,20 +296,12 @@ export function NicknamePanel({
                     onAddNickname={onAddDefaultNickname}
                   />
                 )}
-                {onSuggestLocalDefault && (
-                  <LocalSuggestButton
-                    busy={generatingKey === 'nick:local:default'}
-                    disabled={!canAddDefault}
-                    title="Suggest default nickname (free)"
-                    onClick={onSuggestLocalDefault}
-                  />
-                )}
-                {hasApiKey && onCanonAiDefault && (
+                {hasApiKey && onGenerateDefault && (
                   <AiSparkButton
                     busy={generatingKey === 'nick:default'}
                     disabled={!canAddDefault}
-                    title="Canon AI — default nickname (uses API)"
-                    onClick={onCanonAiDefault}
+                    title="Canon AI — default nickname from source"
+                    onClick={onGenerateDefault}
                   />
                 )}
               </span>
@@ -338,33 +325,18 @@ export function NicknamePanel({
             </button>
           </div>
 
-          {others.length > 0 &&
-            (onSuggestLocalMissing || (hasApiKey && onCanonAiMissing)) && (
+          {hasApiKey && onGenerateMissing && others.length > 0 && (
             <div className="nickname-batch-toolbar">
-              {onSuggestLocalMissing && (
-                <LocalSuggestButton
-                  busy={generatingKey === 'nick:local:missing'}
-                  disabled={missingCount === 0}
-                  title={
-                    missingCount === 0
-                      ? 'All islander nicknames are set'
-                      : `Suggest ${missingCount} missing (free)`
-                  }
-                  onClick={onSuggestLocalMissing}
-                />
-              )}
-              {hasApiKey && onCanonAiMissing && (
-                <AiSparkButton
-                  busy={batchBusy}
-                  disabled={missingCount === 0}
-                  title={
-                    missingCount === 0
-                      ? 'All islander nicknames are set'
-                      : `Canon AI — ${missingCount} missing (uses API)`
-                  }
-                  onClick={onCanonAiMissing}
-                />
-              )}
+              <AiSparkButton
+                busy={batchBusy}
+                disabled={missingCount === 0}
+                title={
+                  missingCount === 0
+                    ? 'All islander nicknames are set'
+                    : `Canon AI — fill ${missingCount} missing from source`
+                }
+                onClick={onGenerateMissing}
+              />
               <span className="nickname-batch-label">
                 {missingCount === 0
                   ? 'All islander nicknames set'

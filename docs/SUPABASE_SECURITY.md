@@ -26,20 +26,6 @@ Same pattern as phrases — private RPC, Edge Function, JWT required.
 npm run supabase:deploy-community-nicknames
 ```
 
-## Hosted Canon AI (`ai-generate`)
-
-Optional Tomodict cloud generation (40 requests/user/day) when users pick **Tomodict cloud** in Configuration.
-
-1. Run **`supabase/ai_daily_usage.sql`** in the SQL Editor.
-2. Set Edge Function secret **`GEMINI_API_KEY`** (your Google AI Studio key — never in Vercel).
-3. Deploy:
-
-```bash
-npm run supabase:deploy-ai-generate
-```
-
-Quota is enforced in `private.consume_ai_quota` via service role only.
-
 ## Leaked password protection (Auth warning)
 
 In **Supabase Dashboard → Authentication → Providers → Email** (or Password security):

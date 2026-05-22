@@ -8,7 +8,7 @@ interface AiSparkButtonProps {
 export function AiSparkButton({
   busy,
   disabled,
-  title = 'Generate with AI',
+  title = 'Canon AI (Gemini)',
   onClick,
 }: AiSparkButtonProps) {
   return (

@@ -298,17 +298,10 @@ export function useDictionary({
 
   const updateCharacterExtra = useCallback(
     (id: string, extra: string) => {
-      const trimmed = extra.trim();
+      const next = extra.slice(0, MAX_CHARACTER_EXTRA_LENGTH);
       updateCharacters((prev) =>
         prev.map((c) =>
-          c.id === id
-            ? {
-                ...c,
-                extra: trimmed
-                  ? trimmed.slice(0, MAX_CHARACTER_EXTRA_LENGTH)
-                  : undefined,
-              }
-            : c,
+          c.id === id ? { ...c, extra: next || undefined } : c,
         ),
       );
     },

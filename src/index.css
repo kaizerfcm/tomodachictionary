@@ -801,35 +801,57 @@ img.avatar {
   width: 100%;
 }
 
-.editor-extra-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+.editor-extra-collapsible {
   width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.editor-extra-summary {
+  padding: 0.4rem 0.5rem;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.editor-extra-summary::-webkit-details-marker {
+  display: none;
+}
+
+.editor-extra-summary::before {
+  content: '▸ ';
+}
+
+.editor-extra-collapsible[open] .editor-extra-summary::before {
+  content: '▾ ';
 }
 
 .editor-extra-input {
+  display: block;
   width: 100%;
+  box-sizing: border-box;
   min-height: 2.5rem;
   resize: vertical;
   font-size: 0.85rem;
   font-family: inherit;
   line-height: 1.35;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
+  padding: 0 0.5rem 0.45rem;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
   color: var(--text);
 }
 
 .editor-extra-input:focus {
   outline: none;
-  border-color: var(--accent);
+  background: var(--surface);
 }
 
 .config-textarea {

@@ -54,7 +54,7 @@ export function NewCharacterModal({
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 disabled={!canSubmit}
                 onClick={handleGenerate}
               >
@@ -64,7 +64,7 @@ export function NewCharacterModal({
           ) : (
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-secondary"
               disabled={!canSubmit}
               onClick={handlePlain}
             >
@@ -86,8 +86,8 @@ export function NewCharacterModal({
         placeholder="e.g. Saber (Fate)"
         autoFocus
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && canSubmit) {
-            hasApiKey ? handleGenerate() : handlePlain();
+          if (e.key === 'Enter' && canSubmit && !hasApiKey) {
+            handlePlain();
           }
         }}
       />
@@ -103,12 +103,7 @@ export function NewCharacterModal({
         placeholder="Source, series, tone…"
         onChange={(e) => setExtra(e.target.value)}
       />
-      {hasApiKey ? (
-        <p className="modal-intro">
-          Gemini will create 3 options per phrase and nickname, then let you
-          review before adding.
-        </p>
-      ) : (
+      {!hasApiKey && (
         <p className="modal-intro">
           Add a Gemini API key in Configuration to auto-generate dialogue.
         </p>

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Character } from '../types';
 import type { PhraseType } from '../types';
 import { MAX_CHARACTER_EXTRA_LENGTH } from '../constants';
@@ -71,6 +71,13 @@ export function CharacterEditor({
   communityPhrasesEnabled,
 }: CharacterEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [extraOpen, setExtraOpen] = useState(() =>
+    Boolean(character.extra?.length),
+  );
+
+  useEffect(() => {
+    setExtraOpen(Boolean(character.extra?.length));
+  }, [character.id, character.extra]);
 
   const handleDelete = () => {
     if (
@@ -124,8 +131,14 @@ export function CharacterEditor({
               onChange={(e) => onNameChange(e.target.value)}
               aria-label="Character name"
             />
-            <label className="editor-extra-label">
-              Extra
+            <details
+              className="editor-extra-collapsible"
+              open={extraOpen}
+              onToggle={(e) =>
+                setExtraOpen((e.target as HTMLDetailsElement).open)
+              }
+            >
+              <summary className="editor-extra-summary">Extra</summary>
               <textarea
                 className="editor-extra-input"
                 value={character.extra ?? ''}
@@ -133,8 +146,9 @@ export function CharacterEditor({
                 rows={2}
                 placeholder="Source, series, tone…"
                 onChange={(e) => onExtraChange(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
               />
-            </label>
+            </details>
           </div>
         </div>
         <div className="editor-header-actions">

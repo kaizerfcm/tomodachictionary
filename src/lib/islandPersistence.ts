@@ -4,6 +4,10 @@ import { loadIslandFromCloud, saveIslandToCloud } from './cloudStorage';
 import { loadFromStorage, saveToStorage } from './storage';
 import { getSupabase, isSupabaseConfigured } from './supabase';
 
+export function emptyIsland(): DictionaryData {
+  return { version: 1, characters: [] };
+}
+
 export function normalizeIsland(data: DictionaryData): DictionaryData {
   return {
     version: 1,
@@ -49,31 +53,21 @@ export async function saveIslandToCloudSafe(
   }
 }
 
+/**
+ * Logged out → localStorage only.
+ * Logged in → cloud account only (never fall back to or merge localStorage).
+ */
 export async function loadIslandData(
   storageMode: 'local' | 'cloud',
   userId: string | null | undefined,
-): Promise<DictionaryData | null> {
+): Promise<DictionaryData> {
   if (storageMode === 'cloud' && userId && isSupabaseConfigured()) {
-    try {
-      const cloud = await loadIslandFromCloud(userId);
-      if (cloud && cloud.characters.length > 0) {
-        saveIslandLocally(cloud);
-        return cloud;
-      }
-    } catch {
-      /* fall through to local backup */
-    }
+    const cloud = await loadIslandFromCloud(userId);
+    return normalizeIsland(cloud ?? emptyIsland());
   }
 
   const local = loadFromStorage();
-  if (local && local.characters.length > 0) {
-    if (storageMode === 'cloud' && userId && isSupabaseConfigured()) {
-      void saveIslandToCloudSafe(userId, local);
-    }
-    return local;
-  }
-
-  return null;
+  return normalizeIsland(local ?? emptyIsland());
 }
 
 export function backfillCharacters(chars: Character[]): Character[] {

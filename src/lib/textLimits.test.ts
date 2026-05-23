@@ -3,6 +3,7 @@ import {
   clampOutgoingNickname,
   clampPhraseForType,
   clampShortText,
+  clampStandardPhrase,
 } from './textLimits';
 
 describe('textLimits', () => {
@@ -11,12 +12,18 @@ describe('textLimits', () => {
     expect(clampOutgoingNickname('abcdefghijklmnop')).toBe('abcdefghijklm');
   });
 
-  it('only clamps starting and ending sentence types', () => {
+  it('clamps starting and ending sentence types to 13 chars', () => {
     expect(clampPhraseForType('startingSentence', 'too long for game')).toBe(
       'too long for ',
     );
-    expect(clampPhraseForType('greeting', 'too long for game')).toBe(
-      'too long for game',
+    expect(clampPhraseForType('endingSentence', 'too long for game')).toBe(
+      'too long for ',
     );
+  });
+
+  it('clamps standard phrase types to 25 characters', () => {
+    const long = 'abcdefghijklmnopqrstuvwxyz';
+    expect(clampPhraseForType('greeting', long)).toBe('abcdefghijklmnopqrstuvwxy');
+    expect(clampStandardPhrase(long)).toBe('abcdefghijklmnopqrstuvwxy');
   });
 });

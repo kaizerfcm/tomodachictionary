@@ -36,5 +36,7 @@ public/nicknames-seed.json
 # Supabase CLI local state
 supabase/.temp/
 
-# Cursor IDE
+# Cursor IDE (track shared rules only)
 .cursor/
+!.cursor/rules/
+!.cursor/rules/**

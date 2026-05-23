@@ -22,6 +22,9 @@ export const MAX_CHARACTER_EXTRA_LENGTH = 512;
 /** Starting/ending sentence fragments and “calls others” nicknames (game UI limit). */
 export const MAX_SHORT_TEXT_LENGTH = 13;
 
+/** Max length for all other dialogue phrase types (game UI). */
+export const MAX_PHRASE_LENGTH = 25;
+
 /** Avatar stored as JPEG data URL (px). */
 export const AVATAR_MAX_PX = 128;
 

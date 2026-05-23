@@ -51,6 +51,7 @@ export function useDictionary({
   const persistLocal = useCallback((next: Character[]) => {
     const data: DictionaryData = { version: 1, characters: next };
     pendingData.current = data;
+    if (storageModeRef.current !== 'local') return;
     void saveIslandLocallySafe(data).then((localErr) => {
       if (localErr) {
         setSyncStatus('error');
@@ -75,7 +76,8 @@ export function useDictionary({
 
   useEffect(() => {
     const onBeforeUnload = () => {
-      if (pendingData.current) {
+      if (!pendingData.current) return;
+      if (storageModeRef.current === 'local') {
         try {
           saveToStorage(pendingData.current);
         } catch {

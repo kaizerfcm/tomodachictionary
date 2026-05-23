@@ -1,0 +1,30 @@
+---
+description: Git commit identity — personal account only for this repo
+alwaysApply: true
+---
+
+# Git commits (Tomodict)
+
+This repository belongs to the **personal** GitHub account **kaizerfcm**.
+
+## Before any commit or push
+
+1. Verify identity:
+   ```bash
+   git config user.name
+   git config user.email
+   ```
+2. **Do not commit or push** if:
+   - `user.name` or `user.email` indicates the work account **fmorais-plana** (or any `@plana` / work email the user has flagged)
+   - identity is unknown or not the personal account
+3. Stop and tell the user to switch Git credentials to **kaizerfcm** / personal email before proceeding.
+
+## Allowed committer
+
+- **kaizerfcm** with personal email (e.g. `felipecastanheiramorais@gmail.com`)
+
+## Never
+
+- Run `git config` to change user.name or user.email in this repo
+- Commit on behalf of fmorais-plana or any work identity
+- Force-push to `main` unless the user explicitly requests it

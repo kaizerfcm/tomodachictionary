@@ -1,4 +1,4 @@
-import { MAX_PHRASES_PER_TYPE, MAX_SHORT_TEXT_LENGTH } from '../constants';
+import { MAX_PHRASES_PER_TYPE, MAX_PHRASE_LENGTH, MAX_SHORT_TEXT_LENGTH } from '../constants';
 import { isShortPhraseType } from '../lib/textLimits';
 import { PHRASE_TYPES, type PhraseType } from '../types';
 import { AiSparkButton } from './AiSparkButton';
@@ -76,7 +76,7 @@ export function PhraseSection({
               type="text"
               className="phrase-input"
               value={phrase}
-              maxLength={shortPhrase ? MAX_SHORT_TEXT_LENGTH : undefined}
+              maxLength={shortPhrase ? MAX_SHORT_TEXT_LENGTH : MAX_PHRASE_LENGTH}
               onChange={(e) => onUpdate(index, e.target.value)}
               aria-label={`${label} phrase ${index + 1}`}
             />

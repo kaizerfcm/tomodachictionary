@@ -94,15 +94,6 @@ function App() {
         if (error) throw error;
         if (data.user) {
           await ensureUserProfile(data.user.id, detectAccountCountry());
-          const cloud = await loadIslandFromCloud(data.user.id);
-          const local = loadFromStorage();
-          if (
-            (!cloud || cloud.characters.length === 0) &&
-            local &&
-            local.characters.length > 0
-          ) {
-            await saveIslandToCloud(data.user.id, local);
-          }
         }
       }
 
@@ -173,7 +164,7 @@ function App() {
         onSignOut={handleSignOut}
         onOpenAuth={handleOpenAuth}
       />
-      <Analytics />
+      <WebAnalytics />
     </>
   );
 }

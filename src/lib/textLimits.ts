@@ -1,4 +1,4 @@
-import { MAX_SHORT_TEXT_LENGTH } from '../constants';
+import { MAX_PHRASE_LENGTH, MAX_SHORT_TEXT_LENGTH } from '../constants';
 import type { PhraseType } from '../types';
 import type { FullCharacterGeneration, Triplet } from './gemini/types';
 
@@ -15,8 +15,14 @@ export function clampShortText(text: string): string {
   return text.slice(0, MAX_SHORT_TEXT_LENGTH);
 }
 
+export function clampStandardPhrase(text: string): string {
+  return text.slice(0, MAX_PHRASE_LENGTH);
+}
+
 export function clampPhraseForType(type: PhraseType, text: string): string {
-  return isShortPhraseType(type) ? clampShortText(text) : text;
+  return isShortPhraseType(type)
+    ? clampShortText(text)
+    : clampStandardPhrase(text);
 }
 
 /** Default nicknames and per-target names in “calls others”. */
@@ -27,9 +33,11 @@ export function clampOutgoingNickname(text: string): string {
 export function applyShortTextLimitsToGeneration(
   generation: FullCharacterGeneration,
 ): FullCharacterGeneration {
-  const phrases = { ...generation.phrases };
-  for (const type of SHORT_PHRASE_TYPES) {
-    phrases[type] = phrases[type].map(clampShortText) as Triplet;
+  const phrases = {} as FullCharacterGeneration['phrases'];
+  for (const type of Object.keys(generation.phrases) as PhraseType[]) {
+    phrases[type] = generation.phrases[type].map((line) =>
+      clampPhraseForType(type, line),
+    ) as Triplet;
   }
 
   return {

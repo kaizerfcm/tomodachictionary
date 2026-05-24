@@ -35,7 +35,6 @@ import {
   generateOnePhrase,
 } from './lib/ai/generate';
 import {
-  buildFullCharacterPrompt,
   buildOneDefaultNicknamePrompt,
   buildOnePhrasePrompt,
 } from './lib/gemini/prompts';
@@ -291,10 +290,7 @@ export function AppMain({
     async (name: string, extra?: string) => {
       setShowNewCharModal(false);
       const generation = await runAi('newchar', () =>
-        generateFullCharacter(
-          apiKey,
-          buildFullCharacterPrompt(name, characters, extra),
-        ),
+        generateFullCharacter(apiKey, name, characters, extra),
       );
       if (generation) {
         setNewCharReview({ name, extra, generation });

@@ -7,8 +7,8 @@ export const MAX_PHRASES_PER_TYPE = 10;
 /** Max nickname options per target (and default list). */
 export const MAX_NICKNAME_OPTIONS = 10;
 
-/** How many options Gemini adds per batch. */
-export const AI_BATCH_SIZE = 1;
+/** Lines / nicknames generated per type when creating a character via Canon AI. */
+export const AI_INITIAL_BATCH_SIZE = 1;
 
 /** Max islanders per Fill-missing Gemini request (avoids truncated JSON). */
 export const MISSING_NICKNAMES_CHUNK_SIZE = 12;

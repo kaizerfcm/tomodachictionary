@@ -1,7 +1,11 @@
 import { MISSING_NICKNAMES_CHUNK_SIZE } from '../../constants';
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
-import { buildMissingIslandNicknamesPrompt } from '../gemini/prompts';
+import {
+  buildFullCharacterNicknamesPrompt,
+  buildFullCharacterPhrasesPrompt,
+  buildMissingIslandNicknamesPrompt,
+} from '../gemini/prompts';
 import type { GeneratedMissingNicknames } from '../gemini/types';
 import {
   chunkMissingNicknamePairs,
@@ -14,12 +18,20 @@ import {
 } from '../textLimits';
 import type {
   FullCharacterGeneration,
+  GeneratedOutgoingNicknames,
   GeneratedPhrases,
   Triplet,
 } from '../gemini/types';
 import { callGemini } from './callModel';
 import { AiError } from './errors';
 import { AI_TOKENS } from './tokenLimits';
+
+const GENERIC_NICKNAME =
+  /^(pal|buddy|friend|man|dude|bro|chief|sport|kid|mate|homie|hey|you)$/i;
+
+function isGenericNickname(value: string): boolean {
+  return GENERIC_NICKNAME.test(value.trim());
+}
 
 function parseJson<T>(raw: string): T {
   const trimmed = raw.trim();
@@ -88,42 +100,115 @@ export function normalizeTripletInput(value: unknown): string[] {
   return asString ? [asString] : [];
 }
 
-function assertTriplet(value: unknown, label: string): Triplet {
+function assertSingleLine(value: unknown, label: string): string {
   const items = normalizeTripletInput(value);
-  if (items.length === 0) {
-    throw new AiError(`Invalid triplet for ${label}`);
+  const line = items[0]?.trim() ?? '';
+  if (!line) {
+    throw new AiError(`Empty line for ${label}`);
   }
-
-  while (items.length < 3) {
-    items.push('');
-  }
-
-  return [items[0], items[1], items[2]];
+  return line;
 }
 
-function parsePhrases(raw: Record<string, unknown>): GeneratedPhrases {
+function singleToTriplet(line: string): Triplet {
+  return [line, '', ''];
+}
+
+function parsePhrasesSingles(raw: Record<string, unknown>): GeneratedPhrases {
   const phrases = {} as GeneratedPhrases;
   for (const { key } of PHRASE_TYPES) {
     const type = key as PhraseType;
-    const triplet = assertTriplet(raw[key], key);
-    phrases[type] = triplet.map((line) => clampPhraseForType(type, line)) as Triplet;
+    const line = assertSingleLine(raw[key], key);
+    phrases[type] = singleToTriplet(clampPhraseForType(type, line));
   }
   return phrases;
 }
 
-function parseTripletsMap(
-  raw: Record<string, unknown> | undefined,
-  clampNickname = false,
-): Record<string, Triplet> {
-  if (!raw || typeof raw !== 'object') return {};
-  const out: Record<string, Triplet> = {};
-  for (const [name, val] of Object.entries(raw)) {
-    const triplet = assertTriplet(val, name);
-    out[name] = clampNickname
-      ? (triplet.map(clampOutgoingNickname) as Triplet)
-      : triplet;
+function parseOutgoingSingles(
+  raw: Record<string, unknown>,
+  options?: { includeDefaults?: boolean },
+): GeneratedOutgoingNicknames {
+  const includeDefaults = options?.includeDefaults ?? true;
+  const byTargetRaw = raw.byTargetName as Record<string, unknown> | undefined;
+  const byTargetName: Record<string, Triplet> = {};
+
+  for (const [name, val] of Object.entries(byTargetRaw ?? {})) {
+    const line = assertSingleLine(val, name);
+    byTargetName[name] = singleToTriplet(clampOutgoingNickname(line));
   }
-  return out;
+
+  return {
+    nicknameDefault: includeDefaults
+      ? singleToTriplet(
+          clampOutgoingNickname(
+            assertSingleLine(raw.nicknameDefault, 'nicknameDefault'),
+          ),
+        )
+      : (['', '', ''] as Triplet),
+    byTargetName,
+  };
+}
+
+function outgoingHasGenericNicknames(outgoing: GeneratedOutgoingNicknames): boolean {
+  const lines = [
+    ...outgoing.nicknameDefault,
+    ...Object.values(outgoing.byTargetName).flat(),
+  ];
+  return lines.some((line) => line.trim() && isGenericNickname(line));
+}
+
+async function generateCharacterPhrases(
+  apiKey: string,
+  name: string,
+  extra?: string,
+): Promise<GeneratedPhrases> {
+  const raw = parseJson<{ phrases: Record<string, unknown> }>(
+    await callGemini(apiKey, {
+      prompt: buildFullCharacterPhrasesPrompt(name, extra),
+      maxOutputTokens: AI_TOKENS.fullCharacterPhrases,
+    }),
+  );
+  if (!raw.phrases || typeof raw.phrases !== 'object') {
+    throw new AiError('Missing phrases in response');
+  }
+  return parsePhrasesSingles(raw.phrases);
+}
+
+async function generateCharacterOutgoingNicknames(
+  apiKey: string,
+  name: string,
+  characters: Character[],
+  extra?: string,
+): Promise<GeneratedOutgoingNicknames> {
+  const chunks: Character[][] = [];
+  for (let i = 0; i < characters.length; i += MISSING_NICKNAMES_CHUNK_SIZE) {
+    chunks.push(characters.slice(i, i + MISSING_NICKNAMES_CHUNK_SIZE));
+  }
+  if (chunks.length === 0) {
+    chunks.push([]);
+  }
+
+  let nicknameDefault = singleToTriplet('');
+  const byTargetName: Record<string, Triplet> = {};
+
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const includeDefaults = i === 0;
+    const raw = parseJson<Record<string, unknown>>(
+      await callGemini(apiKey, {
+        prompt: buildFullCharacterNicknamesPrompt(name, chunk, extra, {
+          includeDefaults,
+        }),
+        maxOutputTokens: AI_TOKENS.fullCharacterNicknames,
+      }),
+    );
+    const part = parseOutgoingSingles(raw, { includeDefaults });
+    if (includeDefaults && part.nicknameDefault[0]) {
+      nicknameDefault = part.nicknameDefault;
+    }
+    Object.assign(byTargetName, part.byTargetName);
+  }
+
+  return { nicknameDefault, byTargetName };
 }
 
 function assertLine(raw: Record<string, unknown>, key: string): string {
@@ -134,39 +219,34 @@ function assertLine(raw: Record<string, unknown>, key: string): string {
 
 export async function generateFullCharacter(
   apiKey: string,
-  prompt: string,
+  name: string,
+  characters: Character[],
+  extra?: string,
 ): Promise<FullCharacterGeneration> {
-  const raw = parseJson<Record<string, unknown>>(
-    await callGemini(apiKey, {
-      prompt,
-      maxOutputTokens: AI_TOKENS.fullCharacter,
-    }),
-  );
-  const phrasesRaw = raw.phrases as Record<string, unknown>;
-  const outgoingRaw = raw.outgoing as Record<string, unknown>;
-  const incomingRaw = (raw.incoming as Record<string, unknown>) ?? {};
+  const phrases = await generateCharacterPhrases(apiKey, name, extra);
 
-  if (!phrasesRaw || !outgoingRaw) {
-    throw new AiError('Missing phrases or outgoing in response');
+  let outgoing = await generateCharacterOutgoingNicknames(
+    apiKey,
+    name,
+    characters,
+    extra,
+  );
+  if (outgoingHasGenericNicknames(outgoing)) {
+    const retry = await generateCharacterOutgoingNicknames(
+      apiKey,
+      name,
+      characters,
+      extra,
+    );
+    if (!outgoingHasGenericNicknames(retry)) {
+      outgoing = retry;
+    }
   }
 
   const generation: FullCharacterGeneration = {
-    phrases: parsePhrases(phrasesRaw),
-    outgoing: {
-      nicknameDefault: assertTriplet(
-        outgoingRaw.nicknameDefault,
-        'nicknameDefault',
-      ).map(clampOutgoingNickname) as Triplet,
-      byTargetName: parseTripletsMap(
-        outgoingRaw.byTargetName as Record<string, unknown>,
-        true,
-      ),
-    },
-    incoming: {
-      bySpeakerName: parseTripletsMap(
-        incomingRaw.bySpeakerName as Record<string, unknown>,
-      ),
-    },
+    phrases,
+    outgoing,
+    incoming: { bySpeakerName: {} },
   };
   return applyShortTextLimitsToGeneration(generation);
 }

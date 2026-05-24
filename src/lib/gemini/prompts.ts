@@ -1,4 +1,4 @@
-import { MAX_PHRASE_LENGTH, MAX_SHORT_TEXT_LENGTH } from '../../constants';
+import { AI_INITIAL_BATCH_SIZE, MAX_PHRASE_LENGTH, MAX_SHORT_TEXT_LENGTH } from '../../constants';
 import type { Character } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
 import {
@@ -38,14 +38,13 @@ const EXPLICIT_LANGUAGE_RULES = `LANGUAGE & TONE (match the source — no censor
 const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or generic filler = failure):
 - Lock onto ONE character: the named CHARACTER and their source work (game, anime, manga, VN, etc.) from name + Extra. Do not write lines for a different character with a similar name.
 - Each phrase must be a quote, tight paraphrase, or unmistakable reference to THAT character's canon (catchphrase, job, running gag, relationship, famous scene).
-- Per phrase type triplet: at least 2 of 3 options must be fan-recognizable from the correct source only.
 - Match their speech habits: tics, sarcasm, formality, profanity level, sleepy mumbles, food lines, etc.
 - FORBIDDEN: bland villager filler ("Hey!", "Yay!", "So happy!", "Life is good", "Best day", "You know it!", "Good to see you!") and lines that could belong to any random islander.
 - Do not add trailing periods or commas unless that punctuation is part of a famous canon line.
 - If the source is obscure, use Extra notes (series/game name is critical); never invent an unrelated franchise or OC voice.`;
 
-const JSON_TRIPLET_RULES = `- Every phrase type and nickname field MUST be a JSON array of exactly 3 separate strings — never a single string, never fewer than 3 entries.
-- startingSentence / endingSentence: tiny opener/closer fragments only (e.g. "So," "Well," "...yeah"); still arrays of 3 strings.`;
+const JSON_SINGLE_LINE_RULES = `- Each phrase type value MUST be one JSON string (not an array).
+- startingSentence / endingSentence: tiny opener/closer fragments only from canon.`;
 
 function phraseLengthRuleForType(type: PhraseType): string {
   if (isShortPhraseType(type)) {
@@ -57,7 +56,9 @@ function phraseLengthRuleForType(type: PhraseType): string {
 function canonNicknameRules(speakerName: string): string {
   return `CANON NICKNAMES (required):
 - Nicknames "${speakerName}" uses must fit how that character addresses people in source canon (honorifics, insults, pet names, surnames only, etc.).
-- Relationship-aware when addressing named cast members.`;
+- Relationship-aware when addressing named cast members — use each target's source/role from the cast list.
+- FORBIDDEN generic filler nicknames unless that exact word is canon for this character: Pal, Buddy, Friend, Man, Dude, Bro, Chief, Sport, Kid, Hey, Mate, Homie.
+- Each target nickname must differ from nicknameDefault and reflect that specific relationship.`;
 }
 
 function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
@@ -69,8 +70,18 @@ function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
   return out;
 }
 
-/** Max cast rows in full-character / batch prompts. */
-export const ISLAND_SNAPSHOT_LIMIT_FULL = 6;
+/** Max cast rows in batch nickname prompts. */
+export const ISLAND_SNAPSHOT_LIMIT_FULL = 12;
+
+function buildCastListForNicknames(characters: Character[]): string {
+  if (characters.length === 0) return '(none — use empty byTargetName)';
+  return characters
+    .map((c) => {
+      const extra = c.extra?.trim();
+      return extra ? `- ${c.name} — ${extra}` : `- ${c.name}`;
+    })
+    .join('\n');
+}
 
 function buildCompactCastNames(
   characters: Character[],
@@ -112,15 +123,10 @@ export function buildIslandSnapshot(
     .join('\n');
 }
 
-export function buildFullCharacterPrompt(
+export function buildFullCharacterPhrasesPrompt(
   newName: string,
-  characters: Character[],
   newExtra?: string,
 ): string {
-  const island = buildIslandSnapshot(characters);
-  const targets = characters.map((c) => c.name).join(', ');
-  const hasCast = characters.length > 0;
-
   return `You are quoting spoken dialogue from ONE character's ORIGINAL canon for a life-simulation dialogue UI with strict length slots.
 
 ${characterIdentityBlock(newName, newExtra)}
@@ -128,12 +134,6 @@ ${CANON_DIALOGUE_RULES}
 ${CANON_MOMENTS_RULES}
 ${EXPLICIT_LANGUAGE_RULES}
 ${PHRASE_LENGTH_RULES}
-${canonNicknameRules(newName)}
-
-Island cast (tone reference only — do NOT copy their lines for "${newName}"):
-${island || '(empty island — first character)'}
-
-Existing names for nicknames: ${targets || '(none — use empty byTargetName)'}
 
 Phrase types (exact JSON keys):
 ${PHRASE_TYPE_LIST}
@@ -141,39 +141,70 @@ ${PHRASE_TYPE_LIST}
 Rules:
 ${ENGLISH_PHRASE_RULES}
 ${EXPLICIT_LANGUAGE_RULES}
-${SHORT_TEXT_LIMIT_RULES}
-${JSON_TRIPLET_RULES}
+${JSON_SINGLE_LINE_RULES}
+- Provide exactly ${AI_INITIAL_BATCH_SIZE} best canon line per phrase type — prioritize the most fan-recognizable option for that category.
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (may start with punctuation).
-- Provide exactly 3 distinct options per phrase type from different canon moments where possible (trailers, MVs, memes, cutscenes).
 - Self-check each string length before output; truncate if needed.
-- nicknameDefault: exactly 3 default nicknames (≤ ${MAX_SHORT_TEXT_LENGTH} chars each).
-${hasCast
-    ? `- byTargetName: for EACH existing cast member, 3 nicknames "${newName}" would use (≤ ${MAX_SHORT_TEXT_LENGTH} chars, relationship-specific).`
-    : `- byTargetName: use {} (no other islanders yet).`}
-- Do NOT generate incoming.bySpeakerName. Always return "incoming": { "bySpeakerName": {} }.
+- This request is standalone — ignore any prior conversation; focus only on "${newName}".
 
 Return ONLY valid JSON:
 {
   "phrases": {
-    "catchphrases": ["", "", ""],
-    "startingSentence": ["", "", ""],
-    "endingSentence": ["", "", ""],
-    "beforeEating": ["", "", ""],
-    "shoutAtSea": ["", "", ""],
-    "whenHappy": ["", "", ""],
-    "whenSad": ["", "", ""],
-    "whenAngry": ["", "", ""],
-    "whileSleeping": ["", "", ""],
-    "greeting": ["", "", ""]
-  },
-  "outgoing": {
-    "nicknameDefault": ["", "", ""],
-    "byTargetName": { "Existing Name": ["", "", ""] }
-  },
-  "incoming": {
-    "bySpeakerName": { "Existing Name": ["", "", ""] }
+    "catchphrases": "",
+    "startingSentence": "",
+    "endingSentence": "",
+    "beforeEating": "",
+    "shoutAtSea": "",
+    "whenHappy": "",
+    "whenSad": "",
+    "whenAngry": "",
+    "whileSleeping": "",
+    "greeting": ""
   }
 }`;
+}
+
+export function buildFullCharacterNicknamesPrompt(
+  newName: string,
+  targets: Character[],
+  newExtra?: string,
+  options?: { includeDefaults?: boolean },
+): string {
+  const includeDefaults = options?.includeDefaults ?? true;
+  const cast = buildCastListForNicknames(targets);
+  const hasCast = targets.length > 0;
+
+  return `Write outgoing nicknames from ONE character's source canon for a life-simulation cast.
+
+${characterIdentityBlock(newName, newExtra)}
+${canonNicknameRules(newName)}
+
+Island cast (names + source notes only — do NOT reuse generic nicknames from other islanders):
+${cast}
+
+Rules:
+${SHORT_TEXT_LIMIT_RULES}
+- Provide exactly ${AI_INITIAL_BATCH_SIZE} nickname string per field (not arrays).
+${includeDefaults ? `- nicknameDefault: one default nickname "${newName}" uses for strangers / new acquaintances.` : '- Do NOT include nicknameDefault in the JSON.'}
+${hasCast
+    ? `- byTargetName: for EACH cast member listed above, one nickname "${newName}" would use (relationship-specific, from canon).`
+    : `- byTargetName: use {} (no other islanders yet).`}
+- This request is standalone — ignore any prior conversation; focus only on "${newName}".
+
+Return ONLY valid JSON:
+{
+  ${includeDefaults ? '"nicknameDefault": "",' : ''}
+  "byTargetName": { "Cast Member Name": "" }
+}`;
+}
+
+/** @deprecated Use buildFullCharacterPhrasesPrompt + buildFullCharacterNicknamesPrompt */
+export function buildFullCharacterPrompt(
+  newName: string,
+  _characters: Character[],
+  newExtra?: string,
+): string {
+  return buildFullCharacterPhrasesPrompt(newName, newExtra);
 }
 
 function phraseLabel(type: PhraseType): string {
@@ -206,6 +237,7 @@ ${JSON.stringify(existing)}
 Rules:
 ${ENGLISH_PHRASE_RULES}
 ${type === 'shoutAtSea' ? '- ALL CAPS if they shout in canon; still within character limit.\n' : ''}- Count characters before answering; shorten if over limit.
+- This request is standalone — ignore any prior conversation; focus only on "${character.name}".
 
 Return ONLY valid JSON: { "line": "your new line here" }`;
 }
@@ -260,8 +292,10 @@ export function buildMissingIslandNicknamesPrompt(
   const incomingNames = missing.missingIncoming.map((c) => c.name);
   const compact = options?.compactCast ?? false;
   const castContext = compact
-    ? `Other islanders (names only): ${buildCompactCastNames(allCharacters, subject.id, 16)}`
-    : `Cast context (compact):\n${buildIslandSnapshot(allCharacters, subject.id, ISLAND_SNAPSHOT_LIMIT_FULL)}`;
+    ? `Island cast (names + source notes only):\n${buildCastListForNicknames(
+        allCharacters.filter((c) => c.id !== subject.id),
+      )}`
+    : `Cast context:\n${buildIslandSnapshot(allCharacters, subject.id, ISLAND_SNAPSHOT_LIMIT_FULL)}`;
 
   return `Write nicknames from source canon for a life-simulation cast.
 

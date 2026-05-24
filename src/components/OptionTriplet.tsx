@@ -50,16 +50,18 @@ export function OptionTripletMulti({
     <fieldset className="option-triplet">
       <legend className="option-triplet-label">{label}</legend>
       <div className="option-triplet-choices">
-        {options.map((opt, i) => (
-          <label key={i} className="option-choice">
-            <input
-              type="checkbox"
-              checked={selectedIndices[i]}
-              onChange={() => onToggle(i)}
-            />
-            <span>{opt || '(empty)'}</span>
-          </label>
-        ))}
+        {options.map((opt, i) =>
+          opt.trim() ? (
+            <label key={i} className="option-choice">
+              <input
+                type="checkbox"
+                checked={selectedIndices[i]}
+                onChange={() => onToggle(i)}
+              />
+              <span>{opt}</span>
+            </label>
+          ) : null,
+        )}
       </div>
     </fieldset>
   );

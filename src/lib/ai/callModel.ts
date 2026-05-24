@@ -23,7 +23,7 @@ export async function callGemini(
     body: JSON.stringify({
       contents: [{ parts: [{ text: options.prompt }] }],
       generationConfig: {
-        temperature: 0.65,
+        temperature: 0.85,
         maxOutputTokens: options.maxOutputTokens,
         responseMimeType: 'application/json',
       },

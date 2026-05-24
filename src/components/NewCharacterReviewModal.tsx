@@ -22,8 +22,8 @@ interface NewCharacterReviewModalProps {
   onClose: () => void;
 }
 
-function tripletPicks() {
-  return [true, true, true] as boolean[];
+function initialPicks(options: [string, string, string]) {
+  return options.map((opt) => Boolean(opt.trim()));
 }
 
 export function NewCharacterReviewModal({
@@ -36,16 +36,21 @@ export function NewCharacterReviewModal({
 }: NewCharacterReviewModalProps) {
   const [phrasePicks, setPhrasePicks] = useState(() =>
     Object.fromEntries(
-      PHRASE_TYPES.map(({ key }) => [key, tripletPicks()]),
+      PHRASE_TYPES.map(({ key }) => [
+        key,
+        initialPicks(generation.phrases[key]),
+      ]),
     ) as Record<PhraseType, boolean[]>,
   );
-  const [defaultPicks, setDefaultPicks] = useState(tripletPicks);
+  const [defaultPicks, setDefaultPicks] = useState(() =>
+    initialPicks(generation.outgoing.nicknameDefault),
+  );
   const [outgoingPicks, setOutgoingPicks] = useState<Record<string, boolean[]>>(
     () =>
       Object.fromEntries(
         Object.keys(generation.outgoing.byTargetName).map((n) => [
           n,
-          tripletPicks(),
+          initialPicks(generation.outgoing.byTargetName[n]),
         ]),
       ),
   );
@@ -72,7 +77,7 @@ export function NewCharacterReviewModal({
     )) {
       const id = nameToId.get(targetName);
       if (!id) continue;
-      const picks = outgoingPicks[targetName] ?? tripletPicks();
+      const picks = outgoingPicks[targetName] ?? initialPicks(triplet);
       const selected = triplet.filter((_, i) => picks[i]);
       if (selected.length) nicknames[id] = selected;
     }
@@ -104,8 +109,8 @@ export function NewCharacterReviewModal({
       }
     >
       <p className="modal-intro">
-        Check the lines to add. You can keep all three per row or pick only the
-        ones you like. How other islanders call {name} is set on each of their
+        Review the generated lines before adding. Use ✨ on the character later
+        to generate more options. How other islanders call {name} is set on their
         profiles after adding.
       </p>
       <section className="review-section">
@@ -146,10 +151,10 @@ export function NewCharacterReviewModal({
               key={targetName}
               label={targetName}
               options={triplet}
-              selectedIndices={outgoingPicks[targetName] ?? tripletPicks()}
+              selectedIndices={outgoingPicks[targetName] ?? initialPicks(triplet)}
               onToggle={(i) =>
                 setOutgoingPicks((p) => {
-                  const cur = [...(p[targetName] ?? tripletPicks())];
+                  const cur = [...(p[targetName] ?? initialPicks(triplet))];
                   cur[i] = !cur[i];
                   return { ...p, [targetName]: cur };
                 })

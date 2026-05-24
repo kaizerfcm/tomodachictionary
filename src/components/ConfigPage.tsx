@@ -99,8 +99,8 @@ export function ConfigPage({
           >
             Google AI Studio
           </a>
-          . Fill <strong>Extra</strong> on characters with series/role (e.g.
-          &quot;VA-11 Hall-A bartender&quot;) for best canon lines.
+          . Fill <strong>Extra</strong> with source work, role, tone, and
+          iconic scenes for best canon lines.
         </p>
         {apiKey.trim() ? (
           <p className="config-status config-status-ok">

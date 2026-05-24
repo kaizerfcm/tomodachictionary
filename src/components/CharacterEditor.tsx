@@ -146,7 +146,7 @@ export function CharacterEditor({
                 value={character.extra ?? ''}
                 maxLength={MAX_CHARACTER_EXTRA_LENGTH}
                 rows={2}
-                placeholder="Source, series, role… (helps canon AI)"
+                placeholder="Source work, role, tone, iconic scenes to reference"
                 onChange={(e) => onExtraChange(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
               />
@@ -170,8 +170,8 @@ export function CharacterEditor({
       </header>
       <p className="gen-inline-hint">
         👥 Community suggestions when signed in (free). ✨ Canon AI uses Gemini and
-        pulls lines from source material — fill Extra with series/role for best
-        results.
+        pulls lines from source material — fill Extra with source work, role,
+        tone, and iconic scenes for best results.
         {!hasApiKey && ' Add a Gemini key in Configuration to enable ✨.'}
       </p>
       <PhraseEditor

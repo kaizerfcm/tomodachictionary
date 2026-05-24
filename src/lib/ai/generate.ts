@@ -38,15 +38,67 @@ function parseJson<T>(raw: string): T {
   }
 }
 
+/** Coerce model output into a string list (handles strings, short arrays, wrapped objects). */
+export function normalizeTripletInput(value: unknown): string[] {
+  if (value == null) return [];
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.includes('|')) {
+      return trimmed
+        .split('|')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+    return [trimmed];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (item == null) return [];
+      if (typeof item === 'string') {
+        const trimmed = item.trim();
+        return trimmed ? [trimmed] : [];
+      }
+      if (typeof item === 'object') {
+        const obj = item as Record<string, unknown>;
+        for (const key of ['line', 'text', 'phrase', 'value'] as const) {
+          const nested = obj[key];
+          if (typeof nested === 'string' && nested.trim()) {
+            return [nested.trim()];
+          }
+        }
+      }
+      const asString = String(item).trim();
+      return asString ? [asString] : [];
+    });
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    for (const key of ['options', 'lines', 'values', 'items'] as const) {
+      if (Array.isArray(obj[key])) {
+        return normalizeTripletInput(obj[key]);
+      }
+    }
+  }
+
+  const asString = String(value).trim();
+  return asString ? [asString] : [];
+}
+
 function assertTriplet(value: unknown, label: string): Triplet {
-  if (!Array.isArray(value) || value.length < 3) {
+  const items = normalizeTripletInput(value);
+  if (items.length === 0) {
     throw new AiError(`Invalid triplet for ${label}`);
   }
-  return [
-    String(value[0] ?? '').trim(),
-    String(value[1] ?? '').trim(),
-    String(value[2] ?? '').trim(),
-  ];
+
+  while (items.length < 3) {
+    items.push('');
+  }
+
+  return [items[0], items[1], items[2]];
 }
 
 function parsePhrases(raw: Record<string, unknown>): GeneratedPhrases {

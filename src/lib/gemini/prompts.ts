@@ -24,6 +24,16 @@ const PHRASE_LENGTH_RULES = `PHRASE LENGTH (hard limits — count EVERY characte
 
 const SHORT_TEXT_LIMIT_RULES = `- Hard limit (${MAX_SHORT_TEXT_LENGTH} characters max): all outgoing nicknames in nicknameDefault and byTargetName. Abbreviate if needed.`;
 
+const CANON_MOMENTS_RULES = `ICONIC MOMENTS (required — generic personality blurbs = failure):
+- Mine trailers, reveal cinematics, music videos, cutscenes, promotional clips, memes, and fan-quoted scenes tied to THIS character.
+- Across the full phrase set, at least half of all options must nod to a specific famous moment fans would recognize (e.g. a MV reveal, trailer catchphrase, signature visual gag, boss-line, viral clip).
+- Video-game characters: pull from in-game voice lines and marketing material — not polite small talk.`;
+
+const EXPLICIT_LANGUAGE_RULES = `LANGUAGE & TONE (match the source — no censorship):
+- This dictionary mirrors in-game dialogue slots; there is no content filter.
+- Reproduce canon profanity, crude jokes, sexual innuendo, and swearing when the character uses them (e.g. nu-metal frontmen, gritty anti-heroes).
+- Do not sanitize, bowdlerize, or replace swears with mild euphemisms unless the canon line is mild.`;
+
 /** Core instruction: lines must come from source material, not generic villager filler. */
 const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or generic filler = failure):
 - Lock onto ONE character: the named CHARACTER and their source work (game, anime, manga, VN, etc.) from name + Extra. Do not write lines for a different character with a similar name.
@@ -32,7 +42,10 @@ const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or ge
 - Match their speech habits: tics, sarcasm, formality, profanity level, sleepy mumbles, food lines, etc.
 - FORBIDDEN: bland villager filler ("Hey!", "Yay!", "So happy!", "Life is good", "Best day", "You know it!", "Good to see you!") and lines that could belong to any random islander.
 - Do not add trailing periods or commas unless that punctuation is part of a famous canon line.
-- If the source is obscure, use Extra notes; never invent an unrelated franchise or OC voice.`;
+- If the source is obscure, use Extra notes (series/game name is critical); never invent an unrelated franchise or OC voice.`;
+
+const JSON_TRIPLET_RULES = `- Every phrase type and nickname field MUST be a JSON array of exactly 3 separate strings — never a single string, never fewer than 3 entries.
+- startingSentence / endingSentence: tiny opener/closer fragments only (e.g. "So," "Well," "...yeah"); still arrays of 3 strings.`;
 
 function phraseLengthRuleForType(type: PhraseType): string {
   if (isShortPhraseType(type)) {
@@ -72,7 +85,7 @@ function buildCompactCastNames(
 function characterIdentityBlock(name: string, extra?: string): string {
   const extraBlock = extra?.trim()
     ? `\nExtra (source / series / role — use this to lock canon):\n${extra.trim()}\n`
-    : '\nExtra: (none — infer source work from the character name; if ambiguous, pick the best-known franchise match)\n';
+    : '\nExtra: (none — infer source work from the character name; if ambiguous, pick the best-known franchise match; still mine iconic trailers/MVs/memes for that character)\n';
   return `CHARACTER: "${name}"${extraBlock}`;
 }
 
@@ -112,6 +125,8 @@ export function buildFullCharacterPrompt(
 
 ${characterIdentityBlock(newName, newExtra)}
 ${CANON_DIALOGUE_RULES}
+${CANON_MOMENTS_RULES}
+${EXPLICIT_LANGUAGE_RULES}
 ${PHRASE_LENGTH_RULES}
 ${canonNicknameRules(newName)}
 
@@ -125,9 +140,11 @@ ${PHRASE_TYPE_LIST}
 
 Rules:
 ${ENGLISH_PHRASE_RULES}
+${EXPLICIT_LANGUAGE_RULES}
 ${SHORT_TEXT_LIMIT_RULES}
+${JSON_TRIPLET_RULES}
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (may start with punctuation).
-- Provide exactly 3 distinct options per phrase type from different canon moments where possible.
+- Provide exactly 3 distinct options per phrase type from different canon moments where possible (trailers, MVs, memes, cutscenes).
 - Self-check each string length before output; truncate if needed.
 - nicknameDefault: exactly 3 default nicknames (≤ ${MAX_SHORT_TEXT_LENGTH} chars each).
 ${hasCast
@@ -175,6 +192,8 @@ export function buildOnePhrasePrompt(
 ${characterIdentityBlock(character.name, character.extra)}
 ${formatCharacterExtraBlock(character)}
 ${CANON_DIALOGUE_RULES}
+${CANON_MOMENTS_RULES}
+${EXPLICIT_LANGUAGE_RULES}
 ${PHRASE_LENGTH_RULES}
 
 Phrase category: ${phraseLabel(type)} (JSON key: ${type})

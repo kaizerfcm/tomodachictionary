@@ -159,6 +159,11 @@ export function AppMain({
     prevView.current = view;
   }, [selectedId, view, loading, syncToCloud]);
 
+  const handleSignOut = useCallback(async () => {
+    await syncToCloud();
+    await onSignOut();
+  }, [onSignOut, syncToCloud]);
+
   const handleSelectCharacter = useCallback(
     (id: string | null) => {
       setNicknameFilterFromId(null);
@@ -470,7 +475,7 @@ export function AppMain({
         onOpenTos={() => openView('tos')}
         hasApiKey={hasApiKey}
         signedIn={signedIn}
-        onSignOut={signedIn ? onSignOut : undefined}
+        onSignOut={signedIn ? handleSignOut : undefined}
       />
       <div className="main-area">
         <div className="main-area-body">

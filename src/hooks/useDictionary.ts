@@ -18,7 +18,9 @@ import {
 import { backfillCreatedAt } from '../lib/characterDates';
 import { migrateCharacter } from '../types';
 import {
+  emptyIsland,
   loadIslandData,
+  normalizeIsland,
   saveIslandLocallySafe,
   saveIslandToCloudSafe,
 } from '../lib/islandPersistence';
@@ -43,36 +45,73 @@ export function useDictionary({
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
   const pendingData = useRef<DictionaryData | null>(null);
+  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storageModeRef = useRef(storageMode);
   const userIdRef = useRef(userId);
   storageModeRef.current = storageMode;
   userIdRef.current = userId;
 
-  const persistLocal = useCallback((next: Character[]) => {
-    const data: DictionaryData = { version: 1, characters: next };
-    pendingData.current = data;
-    if (storageModeRef.current !== 'local') return;
-    void saveIslandLocallySafe(data).then((localErr) => {
-      if (localErr) {
-        setSyncStatus('error');
-        setSyncError(localErr);
-      }
-    });
+  const applyPendingData = useCallback((data: DictionaryData) => {
+    pendingData.current = normalizeIsland(data);
   }, []);
+
+  const runCloudSave = useCallback(
+    async (data: DictionaryData, userIdOverride?: string) => {
+      const uid = userIdOverride ?? userIdRef.current;
+      if (!uid) return null;
+      setSyncStatus('saving');
+      const cloudErr = await saveIslandToCloudSafe(uid, data);
+      if (cloudErr) {
+        setSyncStatus('error');
+        setSyncError(cloudErr);
+      } else {
+        setSyncError(null);
+        setSyncStatus('saved');
+      }
+      return cloudErr;
+    },
+    [],
+  );
+
+  const queueCloudSave = useCallback(
+    (data: DictionaryData) => {
+      if (storageModeRef.current !== 'cloud' || !userIdRef.current) return;
+      if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
+      cloudSaveTimer.current = setTimeout(() => {
+        cloudSaveTimer.current = null;
+        void runCloudSave(data);
+      }, 800);
+    },
+    [runCloudSave],
+  );
+
+  const persistData = useCallback(
+    (next: Character[]) => {
+      const data: DictionaryData = { version: 1, characters: next };
+      applyPendingData(data);
+      if (storageModeRef.current === 'local') {
+        void saveIslandLocallySafe(data).then((localErr) => {
+          if (localErr) {
+            setSyncStatus('error');
+            setSyncError(localErr);
+          }
+        });
+        return;
+      }
+      queueCloudSave(data);
+    },
+    [applyPendingData, queueCloudSave],
+  );
 
   const syncToCloud = useCallback(async () => {
     if (storageModeRef.current !== 'cloud' || !userIdRef.current) return;
-    const data =
-      pendingData.current ?? { version: 1, characters: [] };
-    const cloudErr = await saveIslandToCloudSafe(userIdRef.current, data);
-    if (cloudErr) {
-      setSyncStatus('error');
-      setSyncError(cloudErr);
-    } else {
-      setSyncError(null);
-      setSyncStatus('idle');
+    if (!pendingData.current) return;
+    if (cloudSaveTimer.current) {
+      clearTimeout(cloudSaveTimer.current);
+      cloudSaveTimer.current = null;
     }
-  }, []);
+    await runCloudSave(pendingData.current);
+  }, [runCloudSave]);
 
   useEffect(() => {
     const onBeforeUnload = () => {
@@ -88,21 +127,22 @@ export function useDictionary({
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', onBeforeUnload);
-      if (pendingData.current) {
-        void syncToCloud();
+      if (cloudSaveTimer.current) {
+        clearTimeout(cloudSaveTimer.current);
+        cloudSaveTimer.current = null;
       }
     };
-  }, [syncToCloud]);
+  }, []);
 
   const updateCharacters = useCallback(
     (updater: (prev: Character[]) => Character[]) => {
       setCharacters((prev) => {
         const next = updater(prev);
-        persistLocal(next);
+        persistData(next);
         return next;
       });
     },
-    [persistLocal],
+    [persistData],
   );
 
   const applyCharacters = useCallback(
@@ -110,37 +150,38 @@ export function useDictionary({
       const next = backfillCreatedAt(chars);
       setCharacters(next);
       setSelectedId(null);
-      persistLocal(next);
+      persistData(next);
     },
-    [persistLocal],
+    [persistData],
   );
 
   const clearAllData = useCallback(async () => {
-    const empty: Character[] = [];
-    setCharacters(empty);
+    const empty: DictionaryData = { version: 1, characters: [] };
+    setCharacters([]);
     setSelectedId(null);
+    applyPendingData(empty);
     if (storageMode === 'cloud' && userId) {
-      await saveIslandToCloud(userId, { version: 1, characters: [] });
+      await saveIslandToCloud(userId, empty);
     } else {
       clearStorage();
     }
-  }, [storageMode, userId]);
+  }, [applyPendingData, storageMode, userId]);
 
   useEffect(() => {
     let cancelled = false;
+    const loadUserId = userId;
+    const loadStorageMode = storageMode;
+
     (async () => {
       try {
         setLoading(true);
         setError(null);
-        const loaded = await loadIslandData(storageMode, userId);
+        const loaded = await loadIslandData(loadStorageMode, loadUserId);
         if (cancelled) return;
-        if (loaded && loaded.characters.length > 0) {
-          setCharacters(backfillCreatedAt(loaded.characters));
-          setSelectedId(null);
-        } else {
-          setCharacters([]);
-          setSelectedId(null);
-        }
+        const normalized = normalizeIsland(loaded ?? emptyIsland());
+        applyPendingData(normalized);
+        setCharacters(backfillCreatedAt(normalized.characters));
+        setSelectedId(null);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : 'Failed to load data');
@@ -149,10 +190,18 @@ export function useDictionary({
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
+      if (
+        loadStorageMode === 'cloud' &&
+        loadUserId &&
+        pendingData.current
+      ) {
+        void saveIslandToCloudSafe(loadUserId, pendingData.current);
+      }
     };
-  }, [storageMode, userId]);
+  }, [applyPendingData, storageMode, userId]);
 
   const selected =
     characters.find((c) => c.id === selectedId) ?? null;

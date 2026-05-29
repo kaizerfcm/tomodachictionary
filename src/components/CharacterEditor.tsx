@@ -32,6 +32,7 @@ interface CharacterEditorProps {
   onGeneratePhrase: (type: PhraseType) => void;
   onGenerateDefaultNickname: () => void;
   onGenerateMissingNicknames: () => void;
+  onRegenerateAll?: () => void;
   onOpenCharacter: (id: string) => void;
   nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
@@ -65,6 +66,7 @@ export function CharacterEditor({
   onGeneratePhrase,
   onGenerateDefaultNickname,
   onGenerateMissingNicknames,
+  onRegenerateAll,
   onOpenCharacter,
   nicknameFocusCharacterId,
   islandersNickOpen,
@@ -154,6 +156,18 @@ export function CharacterEditor({
           </div>
         </div>
         <div className="editor-header-actions">
+          {hasApiKey && onRegenerateAll && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={generatingKey === 'regen-char'}
+              onClick={onRegenerateAll}
+            >
+              {generatingKey === 'regen-char'
+                ? 'Regenerating…'
+                : '✨ Regenerate all'}
+            </button>
+          )}
           {character.avatar && (
             <button
               type="button"

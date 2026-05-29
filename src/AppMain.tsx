@@ -27,6 +27,7 @@ import {
 } from './components/AiGenerationStatus';
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
+import { CharacterRegenerateReviewModal } from './components/CharacterRegenerateReviewModal';
 import { AiError } from './lib/ai/errors';
 import {
   generateFullCharacter,
@@ -45,7 +46,7 @@ import {
   getMissingNicknamePairs,
 } from './lib/missingNicknames';
 import type { FullCharacterGeneration } from './lib/gemini/types';
-import type { PhraseType } from './types';
+import type { Character, PhraseType } from './types';
 import type { AuthMode } from './components/AuthScreen';
 import { formatAccountLabel } from './lib/authEmail';
 import { getPaymentConfig } from './lib/paymentConfig';
@@ -98,6 +99,11 @@ export function AppMain({
     source: 'quickFill' | 'canonAi';
   } | null>(null);
   const [newCharReviewKey, setNewCharReviewKey] = useState(0);
+  const [regenReview, setRegenReview] = useState<{
+    snapshot: Character;
+    generation: FullCharacterGeneration;
+  } | null>(null);
+  const [regenReviewKey, setRegenReviewKey] = useState(0);
 
   const {
     characters,
@@ -111,6 +117,7 @@ export function AppMain({
     addCharacter,
     addCharacterFull,
     applyCharacters,
+    applyRegeneratedContent,
     removeCharacter,
     updateCharacterName,
     updateCharacterExtra,
@@ -128,6 +135,12 @@ export function AppMain({
     removeNicknameDefault,
     clearAllData,
   } = useDictionary({ storageMode, userId });
+
+  useEffect(() => {
+    setRegenReview((prev) =>
+      prev && selectedId !== prev.snapshot.id ? null : prev,
+    );
+  }, [selectedId]);
 
   const accountEmail = userEmail ? formatAccountLabel(userEmail) : undefined;
   const payment = getPaymentConfig();
@@ -331,6 +344,37 @@ export function AppMain({
       message: 'Quick fill ready — review and add',
     });
   }, [apiKey, characters, newCharReview, runAi]);
+
+  const handleRegenerateExistingCharacter = useCallback(async () => {
+    if (!selected || !hasApiKey) return;
+    const cast = characters.filter((c) => c.id !== selected.id);
+    const generation = await runAi('regen-char', () =>
+      generateFullCharacter(apiKey, selected.name, cast, selected.extra),
+    );
+    if (!generation) return;
+    setRegenReview((prev) => ({
+      snapshot: prev?.snapshot ?? selected,
+      generation,
+    }));
+    setRegenReviewKey((k) => k + 1);
+  }, [apiKey, characters, hasApiKey, runAi, selected]);
+
+  const handleConfirmRegenerateReview = useCallback(
+    (patch: {
+      phrases: Character['phrases'];
+      nicknameDefaults: string[];
+      nicknames: Record<string, string[]>;
+    }) => {
+      if (!regenReview) return;
+      applyRegeneratedContent(regenReview.snapshot.id, patch);
+      setRegenReview(null);
+      setAiNotice({
+        kind: 'success',
+        message: 'Character updated with selected lines',
+      });
+    },
+    [applyRegeneratedContent, regenReview],
+  );
 
   const handleGeneratePhrase = useCallback(
     async (type: PhraseType) => {
@@ -560,6 +604,7 @@ export function AppMain({
               onGeneratePhrase={handleGeneratePhrase}
               onGenerateDefaultNickname={handleGenerateDefaultNickname}
               onGenerateMissingNicknames={handleGenerateMissingNicknames}
+              onRegenerateAll={handleRegenerateExistingCharacter}
               onOpenCharacter={handleOpenFromNicknames}
               communityPhrasesEnabled={communityPhrasesEnabled}
               communityNicknamesEnabled={communityNicknamesEnabled}
@@ -622,6 +667,19 @@ export function AppMain({
           onRegenerate={handleRegenerateNewCharacter}
           onConfirm={handleConfirmNewCharacter}
           onClose={() => setNewCharReview(null)}
+        />
+      )}
+
+      {regenReview && (
+        <CharacterRegenerateReviewModal
+          key={regenReviewKey}
+          character={regenReview.snapshot}
+          generation={regenReview.generation}
+          allCharacters={characters}
+          regenerating={generatingKey === 'regen-char'}
+          onRegenerate={handleRegenerateExistingCharacter}
+          onConfirm={handleConfirmRegenerateReview}
+          onClose={() => setRegenReview(null)}
         />
       )}
     </div>

@@ -66,3 +66,51 @@ export function OptionTripletMulti({
     </fieldset>
   );
 }
+
+interface OptionCompareProps {
+  label: string;
+  name: string;
+  currentText: string;
+  newText: string;
+  choice: 'current' | 'new';
+  onChoice: (choice: 'current' | 'new') => void;
+}
+
+export function OptionCompare({
+  label,
+  name,
+  currentText,
+  newText,
+  choice,
+  onChoice,
+}: OptionCompareProps) {
+  return (
+    <fieldset className="option-triplet option-compare">
+      <legend className="option-triplet-label">{label}</legend>
+      <div className="option-triplet-choices">
+        <label className="option-choice">
+          <input
+            type="radio"
+            name={name}
+            checked={choice === 'current'}
+            onChange={() => onChoice('current')}
+          />
+          <span>
+            <strong>Current</strong> {currentText}
+          </span>
+        </label>
+        <label className="option-choice">
+          <input
+            type="radio"
+            name={name}
+            checked={choice === 'new'}
+            onChange={() => onChoice('new')}
+          />
+          <span>
+            <strong>New</strong> {newText}
+          </span>
+        </label>
+      </div>
+    </fieldset>
+  );
+}

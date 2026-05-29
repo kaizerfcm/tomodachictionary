@@ -322,6 +322,31 @@ export function useDictionary({
     [updateCharacters],
   );
 
+  const applyRegeneratedContent = useCallback(
+    (
+      charId: string,
+      patch: {
+        phrases: Character['phrases'];
+        nicknameDefaults: string[];
+        nicknames: Record<string, string[]>;
+      },
+    ) => {
+      updateCharacters((prev) =>
+        prev.map((c) =>
+          c.id === charId
+            ? {
+                ...c,
+                phrases: patch.phrases,
+                nicknameDefaults: patch.nicknameDefaults,
+                nicknames: patch.nicknames,
+              }
+            : c,
+        ),
+      );
+    },
+    [updateCharacters],
+  );
+
   const removeCharacter = useCallback(
     (id: string) => {
       updateCharacters((prev) => {
@@ -543,6 +568,7 @@ export function useDictionary({
     appendOutgoingNicknames,
     appendIncomingNicknames,
     applyCharacters,
+    applyRegeneratedContent,
     removeCharacter,
     updateCharacterName,
     updateCharacterExtra,

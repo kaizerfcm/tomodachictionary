@@ -15,6 +15,8 @@ interface NewCharacterReviewModalProps {
   extra?: string;
   generation: FullCharacterGeneration;
   existingCharacters: Character[];
+  regenerating?: boolean;
+  onRegenerate?: () => void;
   onConfirm: (result: {
     character: Character;
     incomingBySpeakerId: Record<string, string[]>;
@@ -31,6 +33,8 @@ export function NewCharacterReviewModal({
   extra,
   generation,
   existingCharacters,
+  regenerating = false,
+  onRegenerate,
   onConfirm,
   onClose,
 }: NewCharacterReviewModalProps) {
@@ -102,15 +106,31 @@ export function NewCharacterReviewModal({
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleConfirm}>
+          {onRegenerate && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={regenerating}
+              onClick={onRegenerate}
+            >
+              {regenerating ? 'Regenerating…' : '✨ Regenerate all'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={regenerating}
+            onClick={handleConfirm}
+          >
             Add to island
           </button>
         </>
       }
     >
       <p className="modal-intro">
-        Review the generated lines before adding. Use ✨ on the character later
-        to generate more options. How other islanders call {name} is set on their
+        Review the generated lines before adding. Not happy with the result?
+        Regenerate all for a fresh pass. You can also generate more lines per
+        category after adding. How other islanders call {name} is set on their
         profiles after adding.
       </p>
       <section className="review-section">

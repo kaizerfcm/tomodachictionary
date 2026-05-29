@@ -95,7 +95,9 @@ export function AppMain({
     name: string;
     extra?: string;
     generation: FullCharacterGeneration;
+    source: 'quickFill' | 'canonAi';
   } | null>(null);
+  const [newCharReviewKey, setNewCharReviewKey] = useState(0);
 
   const {
     characters,
@@ -282,7 +284,8 @@ export function AppMain({
     (name: string, extra?: string) => {
       setShowNewCharModal(false);
       const generation = generateQuickFillCharacter(name, extra, characters);
-      setNewCharReview({ name, extra, generation });
+      setNewCharReview({ name, extra, generation, source: 'quickFill' });
+      setNewCharReviewKey((k) => k + 1);
       setAiNotice({
         kind: 'success',
         message: 'Quick fill ready — review and add',
@@ -298,11 +301,36 @@ export function AppMain({
         generateFullCharacter(apiKey, name, characters, extra),
       );
       if (generation) {
-        setNewCharReview({ name, extra, generation });
+        setNewCharReview({ name, extra, generation, source: 'canonAi' });
+        setNewCharReviewKey((k) => k + 1);
       }
     },
     [apiKey, characters, runAi],
   );
+
+  const handleRegenerateNewCharacter = useCallback(async () => {
+    if (!newCharReview) return;
+    const { name, extra, source } = newCharReview;
+
+    if (source === 'canonAi') {
+      const generation = await runAi('newchar', () =>
+        generateFullCharacter(apiKey, name, characters, extra),
+      );
+      if (generation) {
+        setNewCharReview({ name, extra, generation, source: 'canonAi' });
+        setNewCharReviewKey((k) => k + 1);
+      }
+      return;
+    }
+
+    const generation = generateQuickFillCharacter(name, extra, characters);
+    setNewCharReview({ name, extra, generation, source: 'quickFill' });
+    setNewCharReviewKey((k) => k + 1);
+    setAiNotice({
+      kind: 'success',
+      message: 'Quick fill ready — review and add',
+    });
+  }, [apiKey, characters, newCharReview, runAi]);
 
   const handleGeneratePhrase = useCallback(
     async (type: PhraseType) => {
@@ -585,10 +613,13 @@ export function AppMain({
 
       {newCharReview && (
         <NewCharacterReviewModal
+          key={newCharReviewKey}
           name={newCharReview.name}
           extra={newCharReview.extra}
           generation={newCharReview.generation}
           existingCharacters={characters}
+          regenerating={generatingKey === 'newchar'}
+          onRegenerate={handleRegenerateNewCharacter}
           onConfirm={handleConfirmNewCharacter}
           onClose={() => setNewCharReview(null)}
         />

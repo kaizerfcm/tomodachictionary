@@ -147,16 +147,16 @@ ${JSON_ARRAY_RULES}
 Return ONLY valid JSON:
 {
   "phrases": {
-    "catchphrases": ["option 1", "option 2", "option 3"],
-    "startingSentence": ["option 1", "option 2", "option 3"],
-    "endingSentence": ["option 1", "option 2", "option 3"],
-    "beforeEating": ["option 1", "option 2", "option 3"],
-    "shoutAtSea": ["option 1", "option 2", "option 3"],
-    "whenHappy": ["option 1", "option 2", "option 3"],
-    "whenSad": ["option 1", "option 2", "option 3"],
-    "whenAngry": ["option 1", "option 2", "option 3"],
-    "whileSleeping": ["option 1", "option 2", "option 3"],
-    "greeting": ["option 1", "option 2", "option 3"]
+    "catchphrases": ["canon line here"],
+    "startingSentence": ["So,"],
+    "endingSentence": ["...yeah"],
+    "beforeEating": ["canon line here"],
+    "shoutAtSea": ["canon line here"],
+    "whenHappy": ["canon line here"],
+    "whenSad": ["canon line here"],
+    "whenAngry": ["canon line here"],
+    "whileSleeping": ["canon line here"],
+    "greeting": ["canon line here"]
   }
 }`;
 }
@@ -190,8 +190,8 @@ ${hasCast
 
 Return ONLY valid JSON:
 {
-  ${includeDefaults ? '"nicknameDefault": ["option 1", "option 2", "option 3"],' : ''}
-  "byTargetName": { "Cast Member Name": ["option 1", "option 2", "option 3"] }
+  ${includeDefaults ? '"nicknameDefault": ["canon nickname here"],' : ''}
+  "byTargetName": { "Cast Member Name": ["canon nickname here"] }
 }`;
 }
 

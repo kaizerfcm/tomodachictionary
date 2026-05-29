@@ -35,7 +35,8 @@ function isGenericNickname(value: string): boolean {
 
 function parseJson<T>(raw: string): T {
   const trimmed = raw.trim();
-  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  // Using `{3}` to avoid markdown parser issues with triple backticks
+  const fence = trimmed.match(/`{3}(?:json)?\s*([\s\S]*?)`{3}/);
   const jsonStr = fence ? fence[1].trim() : trimmed;
   try {
     return JSON.parse(jsonStr) as T;
@@ -100,30 +101,32 @@ export function normalizeTripletInput(value: unknown): string[] {
   return asString ? [asString] : [];
 }
 
-function assertSingleLine(value: unknown, label: string): string {
-  const items = normalizeTripletInput(value);
-  const line = items[0]?.trim() ?? '';
-  if (!line) {
-    throw new AiError(`Empty line for ${label}`);
-  }
+function assertLine(raw: Record<string, unknown>, key: string): string {
+  const line = String(raw[key] ?? '').trim();
+  if (!line) throw new AiError(`Empty ${key} in response`);
   return line;
 }
 
-function singleToTriplet(line: string): Triplet {
-  return [line, '', ''];
+function arrayToTriplet(lines: string[]): Triplet {
+  return [
+    lines[0] || '',
+    lines[1] || '',
+    lines[2] || '',
+  ];
 }
 
-function parsePhrasesSingles(raw: Record<string, unknown>): GeneratedPhrases {
+function parsePhrasesBatch(raw: Record<string, unknown>): GeneratedPhrases {
   const phrases = {} as GeneratedPhrases;
   for (const { key } of PHRASE_TYPES) {
     const type = key as PhraseType;
-    const line = assertSingleLine(raw[key], key);
-    phrases[type] = singleToTriplet(clampPhraseForType(type, line));
+    const items = normalizeTripletInput(raw[key]);
+    if (items.length === 0) throw new AiError(`Empty array for ${key}`);
+    phrases[type] = arrayToTriplet(items.map(line => clampPhraseForType(type, line)));
   }
   return phrases;
 }
 
-function parseOutgoingSingles(
+function parseOutgoingBatch(
   raw: Record<string, unknown>,
   options?: { includeDefaults?: boolean },
 ): GeneratedOutgoingNicknames {
@@ -132,18 +135,18 @@ function parseOutgoingSingles(
   const byTargetName: Record<string, Triplet> = {};
 
   for (const [name, val] of Object.entries(byTargetRaw ?? {})) {
-    const line = assertSingleLine(val, name);
-    byTargetName[name] = singleToTriplet(clampOutgoingNickname(line));
+    const items = normalizeTripletInput(val);
+    byTargetName[name] = arrayToTriplet(items.map(line => clampOutgoingNickname(line)));
+  }
+
+  let nicknameDefault: Triplet = ['', '', ''];
+  if (includeDefaults) {
+    const items = normalizeTripletInput(raw.nicknameDefault);
+    nicknameDefault = arrayToTriplet(items.map(line => clampOutgoingNickname(line)));
   }
 
   return {
-    nicknameDefault: includeDefaults
-      ? singleToTriplet(
-          clampOutgoingNickname(
-            assertSingleLine(raw.nicknameDefault, 'nicknameDefault'),
-          ),
-        )
-      : (['', '', ''] as Triplet),
+    nicknameDefault,
     byTargetName,
   };
 }
@@ -170,7 +173,7 @@ async function generateCharacterPhrases(
   if (!raw.phrases || typeof raw.phrases !== 'object') {
     throw new AiError('Missing phrases in response');
   }
-  return parsePhrasesSingles(raw.phrases);
+  return parsePhrasesBatch(raw.phrases);
 }
 
 async function generateCharacterOutgoingNicknames(
@@ -187,7 +190,7 @@ async function generateCharacterOutgoingNicknames(
     chunks.push([]);
   }
 
-  let nicknameDefault = singleToTriplet('');
+  let nicknameDefault = arrayToTriplet([]);
   const byTargetName: Record<string, Triplet> = {};
 
   for (let i = 0; i < chunks.length; i += 1) {
@@ -201,7 +204,7 @@ async function generateCharacterOutgoingNicknames(
         maxOutputTokens: AI_TOKENS.fullCharacterNicknames,
       }),
     );
-    const part = parseOutgoingSingles(raw, { includeDefaults });
+    const part = parseOutgoingBatch(raw, { includeDefaults });
     if (includeDefaults && part.nicknameDefault[0]) {
       nicknameDefault = part.nicknameDefault;
     }
@@ -209,12 +212,6 @@ async function generateCharacterOutgoingNicknames(
   }
 
   return { nicknameDefault, byTargetName };
-}
-
-function assertLine(raw: Record<string, unknown>, key: string): string {
-  const line = String(raw[key] ?? '').trim();
-  if (!line) throw new AiError(`Empty ${key} in response`);
-  return line;
 }
 
 export async function generateFullCharacter(

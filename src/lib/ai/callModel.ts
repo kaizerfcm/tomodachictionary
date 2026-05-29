@@ -1,6 +1,7 @@
 import { AiError } from './errors';
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+// Upgraded from gemini-2.5-flash-lite to gemini-2.5-flash for better deep-cut retrieval
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export interface ModelCallOptions {

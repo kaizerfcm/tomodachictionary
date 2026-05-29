@@ -91,7 +91,7 @@ export function ConfigPage({
           autoComplete="off"
         />
         <p className="config-hint">
-          Model: Gemini 2.5 Flash Lite. Get a key from{' '}
+          Model: Gemini 2.5 Flash. Get a key from{' '}
           <a
             href="https://aistudio.google.com/apikey"
             target="_blank"

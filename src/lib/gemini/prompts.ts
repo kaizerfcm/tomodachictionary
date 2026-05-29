@@ -13,8 +13,8 @@ const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
 ).join('\n');
 
-const ENGLISH_PHRASE_RULES = `- All phrase dialogue must be in English only (Latin script).
-- If the character normally speaks another language in canon, translate or localize into natural English that preserves meaning, tone, and famous-line feel — do not output non-English phrase text.`;
+const LANGUAGE_RULES = `- Preserve the character's original language, slang, and regional dialects if they are iconic to them (e.g., Brazilian Portuguese memes, specific Japanese catchphrases).
+- If translating to English, preserve the exact meaning, tone, and famous-line feel. Do not sanitize.`;
 
 const PHRASE_LENGTH_RULES = `PHRASE LENGTH (hard limits — count EVERY character including spaces and punctuation):
 - catchphrases, beforeEating, shoutAtSea, whenHappy, whenSad, whenAngry, whileSleeping, greeting: max ${MAX_PHRASE_LENGTH} characters each. Prefer 8–20.
@@ -34,7 +34,6 @@ const EXPLICIT_LANGUAGE_RULES = `LANGUAGE & TONE (match the source — no censor
 - Reproduce canon profanity, crude jokes, sexual innuendo, and swearing when the character uses them (e.g. nu-metal frontmen, gritty anti-heroes).
 - Do not sanitize, bowdlerize, or replace swears with mild euphemisms unless the canon line is mild.`;
 
-/** Core instruction: lines must come from source material, not generic villager filler. */
 const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or generic filler = failure):
 - Lock onto ONE character: the named CHARACTER and their source work (game, anime, manga, VN, etc.) from name + Extra. Do not write lines for a different character with a similar name.
 - Each phrase must be a quote, tight paraphrase, or unmistakable reference to THAT character's canon (catchphrase, job, running gag, relationship, famous scene).
@@ -43,7 +42,7 @@ const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or ge
 - Do not add trailing periods or commas unless that punctuation is part of a famous canon line.
 - If the source is obscure, use Extra notes (series/game name is critical); never invent an unrelated franchise or OC voice.`;
 
-const JSON_SINGLE_LINE_RULES = `- Each phrase type value MUST be one JSON string (not an array).
+const JSON_ARRAY_RULES = `- Each value MUST be a JSON array containing exactly ${AI_INITIAL_BATCH_SIZE} distinct string options.
 - startingSentence / endingSentence: tiny opener/closer fragments only from canon.`;
 
 function phraseLengthRuleForType(type: PhraseType): string {
@@ -70,7 +69,6 @@ function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
   return out;
 }
 
-/** Max cast rows in batch nickname prompts. */
 export const ISLAND_SNAPSHOT_LIMIT_FULL = 12;
 
 function buildCastListForNicknames(characters: Character[]): string {
@@ -139,10 +137,9 @@ Phrase types (exact JSON keys):
 ${PHRASE_TYPE_LIST}
 
 Rules:
-${ENGLISH_PHRASE_RULES}
+${LANGUAGE_RULES}
 ${EXPLICIT_LANGUAGE_RULES}
-${JSON_SINGLE_LINE_RULES}
-- Provide exactly ${AI_INITIAL_BATCH_SIZE} best canon line per phrase type — prioritize the most fan-recognizable option for that category.
+${JSON_ARRAY_RULES}
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (may start with punctuation).
 - Self-check each string length before output; truncate if needed.
 - This request is standalone — ignore any prior conversation; focus only on "${newName}".
@@ -150,16 +147,16 @@ ${JSON_SINGLE_LINE_RULES}
 Return ONLY valid JSON:
 {
   "phrases": {
-    "catchphrases": "",
-    "startingSentence": "",
-    "endingSentence": "",
-    "beforeEating": "",
-    "shoutAtSea": "",
-    "whenHappy": "",
-    "whenSad": "",
-    "whenAngry": "",
-    "whileSleeping": "",
-    "greeting": ""
+    "catchphrases": ["option 1", "option 2", "option 3"],
+    "startingSentence": ["option 1", "option 2", "option 3"],
+    "endingSentence": ["option 1", "option 2", "option 3"],
+    "beforeEating": ["option 1", "option 2", "option 3"],
+    "shoutAtSea": ["option 1", "option 2", "option 3"],
+    "whenHappy": ["option 1", "option 2", "option 3"],
+    "whenSad": ["option 1", "option 2", "option 3"],
+    "whenAngry": ["option 1", "option 2", "option 3"],
+    "whileSleeping": ["option 1", "option 2", "option 3"],
+    "greeting": ["option 1", "option 2", "option 3"]
   }
 }`;
 }
@@ -184,21 +181,20 @@ ${cast}
 
 Rules:
 ${SHORT_TEXT_LIMIT_RULES}
-- Provide exactly ${AI_INITIAL_BATCH_SIZE} nickname string per field (not arrays).
-${includeDefaults ? `- nicknameDefault: one default nickname "${newName}" uses for strangers / new acquaintances.` : '- Do NOT include nicknameDefault in the JSON.'}
+- Provide exactly ${AI_INITIAL_BATCH_SIZE} distinct nickname options per array.
+${includeDefaults ? `- nicknameDefault: an array of default nicknames "${newName}" uses for strangers / new acquaintances.` : '- Do NOT include nicknameDefault in the JSON.'}
 ${hasCast
-    ? `- byTargetName: for EACH cast member listed above, one nickname "${newName}" would use (relationship-specific, from canon).`
+    ? `- byTargetName: for EACH cast member listed above, an array of nicknames "${newName}" would use (relationship-specific, from canon).`
     : `- byTargetName: use {} (no other islanders yet).`}
 - This request is standalone — ignore any prior conversation; focus only on "${newName}".
 
 Return ONLY valid JSON:
 {
-  ${includeDefaults ? '"nicknameDefault": "",' : ''}
-  "byTargetName": { "Cast Member Name": "" }
+  ${includeDefaults ? '"nicknameDefault": ["option 1", "option 2", "option 3"],' : ''}
+  "byTargetName": { "Cast Member Name": ["option 1", "option 2", "option 3"] }
 }`;
 }
 
-/** @deprecated Use buildFullCharacterPhrasesPrompt + buildFullCharacterNicknamesPrompt */
 export function buildFullCharacterPrompt(
   newName: string,
   _characters: Character[],
@@ -235,7 +231,7 @@ EXISTING lines for this type (do NOT duplicate):
 ${JSON.stringify(existing)}
 
 Rules:
-${ENGLISH_PHRASE_RULES}
+${LANGUAGE_RULES}
 ${type === 'shoutAtSea' ? '- ALL CAPS if they shout in canon; still within character limit.\n' : ''}- Count characters before answering; shorten if over limit.
 - This request is standalone — ignore any prior conversation; focus only on "${character.name}".
 
@@ -315,7 +311,7 @@ ${incomingNames.length ? incomingNames.join(', ') : '(none — use {})'}
 Rules:
 - Outgoing nicknames: at most ${MAX_SHORT_TEXT_LENGTH} characters each.
 - Incoming nicknames: short and in-character from each speaker's canon.
-- English only (Latin script); localize from canon if needed.
+- Preserve the character's native language/slang.
 - Do not duplicate existing nicknames already on the island.
 - Include ONLY keys listed above; omit everyone else.
 

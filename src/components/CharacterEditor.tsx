@@ -182,55 +182,61 @@ export function CharacterEditor({
           </button>
         </div>
       </header>
-      <PhraseEditor
-        characterName={character.name}
-        communityEnabled={communityPhrasesEnabled}
-        phrases={character.phrases}
-        onUpdatePhrase={onUpdatePhrase}
-        onAddPhrase={onAddPhrase}
-        onRemovePhrase={onRemovePhrase}
-        hasApiKey={hasApiKey}
-        generatingKey={generatingKey}
-        onGeneratePhrase={onGeneratePhrase}
-        onRegenerateAllPhrases={onRegenerateAllPhrases}
-      />
-      <GiftsPanel
-        subject={character}
-        onUpdateLevelUpRewards={onUpdateLevelUpRewards}
-        onRegenerateAll={onRegenerateAllGifts}
-        generatingKey={generatingKey}
-        hasApiKey={hasApiKey}
-      />
-      <ConversationTopicsPanel
-        subject={character}
-        allCharacters={allCharacters}
-        onUpdateInteractionTopic={onUpdateInteractionTopic}
-        onRegenerateAll={onRegenerateAllTopics}
-        onGenerateOne={onGenerateInteractionTopic}
-        generatingKey={generatingKey}
-        hasApiKey={hasApiKey}
-      />
-      <NicknamePanel
-        subject={character}
-        allCharacters={allCharacters}
-        focusCharacterId={nicknameFocusCharacterId}
-        onOpenCharacter={onOpenCharacter}
-        onUpdateDefaultAt={onUpdateNicknameDefaultAt}
-        onAddDefault={() => onAddNicknameDefault()}
-        onRemoveDefault={onRemoveNicknameDefault}
-        onUpdateOutgoingAt={onUpdateNicknameAt}
-        onAddOutgoing={onAddNickname}
-        onRemoveOutgoing={onRemoveNickname}
-        onUpdateIncomingAt={onUpdateIncomingAt}
-        onAddIncoming={onAddIncoming}
-        onRemoveIncoming={onRemoveIncoming}
-        hasApiKey={hasApiKey}
-        communityNicknamesEnabled={communityNicknamesEnabled}
-        generatingKey={generatingKey}
-        onGenerateDefault={onGenerateDefaultNickname}
-        onRegenerateAll={onRegenerateAllNicknames}
-        onAddDefaultNickname={(value) => onAddNicknameDefault(value)}
-      />
+      <div className="editor-body">
+        <div className="editor-body-main">
+          <PhraseEditor
+            characterName={character.name}
+            communityEnabled={communityPhrasesEnabled}
+            phrases={character.phrases}
+            onUpdatePhrase={onUpdatePhrase}
+            onAddPhrase={onAddPhrase}
+            onRemovePhrase={onRemovePhrase}
+            hasApiKey={hasApiKey}
+            generatingKey={generatingKey}
+            onGeneratePhrase={onGeneratePhrase}
+            onRegenerateAllPhrases={onRegenerateAllPhrases}
+          />
+          <GiftsPanel
+            subject={character}
+            onUpdateLevelUpRewards={onUpdateLevelUpRewards}
+            onRegenerateAll={onRegenerateAllGifts}
+            generatingKey={generatingKey}
+            hasApiKey={hasApiKey}
+          />
+          <ConversationTopicsPanel
+            subject={character}
+            allCharacters={allCharacters}
+            onUpdateInteractionTopic={onUpdateInteractionTopic}
+            onRegenerateAll={onRegenerateAllTopics}
+            onGenerateOne={onGenerateInteractionTopic}
+            generatingKey={generatingKey}
+            hasApiKey={hasApiKey}
+          />
+        </div>
+        <aside className="editor-body-aside">
+          <NicknamePanel
+            subject={character}
+            allCharacters={allCharacters}
+            focusCharacterId={nicknameFocusCharacterId}
+            onOpenCharacter={onOpenCharacter}
+            onUpdateDefaultAt={onUpdateNicknameDefaultAt}
+            onAddDefault={() => onAddNicknameDefault()}
+            onRemoveDefault={onRemoveNicknameDefault}
+            onUpdateOutgoingAt={onUpdateNicknameAt}
+            onAddOutgoing={onAddNickname}
+            onRemoveOutgoing={onRemoveNickname}
+            onUpdateIncomingAt={onUpdateIncomingAt}
+            onAddIncoming={onAddIncoming}
+            onRemoveIncoming={onRemoveIncoming}
+            hasApiKey={hasApiKey}
+            communityNicknamesEnabled={communityNicknamesEnabled}
+            generatingKey={generatingKey}
+            onGenerateDefault={onGenerateDefaultNickname}
+            onRegenerateAll={onRegenerateAllNicknames}
+            onAddDefaultNickname={(value) => onAddNicknameDefault(value)}
+          />
+        </aside>
+      </div>
     </main>
   );
 }

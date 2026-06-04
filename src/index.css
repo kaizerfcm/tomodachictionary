@@ -636,6 +636,27 @@ img.avatar {
   text-align: center;
 }
 
+.editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.editor-body-main,
+.editor-body-aside {
+  min-width: 0;
+}
+
+@media (min-width: 1100px) {
+  .editor-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 2rem;
+    align-items: start;
+  }
+}
+
 .btn-back-editor {
   align-self: flex-start;
   padding-left: 0;
@@ -1663,39 +1684,6 @@ img.avatar {
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
-}
-
-@media (min-width: 1100px) {
-  .editor {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 0 2rem;
-    align-content: start;
-  }
-
-  .editor-header,
-  .gen-inline-error,
-  .gen-inline-hint {
-    grid-column: 1 / -1;
-  }
-
-  .phrases-panel,
-  .gifts-panel,
-  .topics-panel,
-  .nicknames-panel {
-    align-self: start;
-  }
-
-  .phrases-panel,
-  .gifts-panel,
-  .topics-panel {
-    grid-column: 1;
-  }
-
-  .nicknames-panel {
-    grid-column: 2;
-    grid-row: 2 / -1;
-  }
 }
 
 /* Sync toast (fixed — no layout shift) */

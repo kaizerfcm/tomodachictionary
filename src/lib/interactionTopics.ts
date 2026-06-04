@@ -7,7 +7,7 @@ export const INTERACTION_TOPIC_KINDS: {
   { value: 'person', label: 'Person' },
   { value: 'thing', label: 'Thing' },
   { value: 'activity', label: 'Activity' },
-  { value: 'other', label: 'Other' },
+  { value: 'other', label: 'Something else' },
 ];
 
 const VALID_KINDS = new Set<InteractionTopicKind>([

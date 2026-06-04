@@ -211,34 +211,47 @@ const TOPIC_KINDS: InteractionTopicKind[] = [
 ];
 
 export function generateLocalInteractionTopic(
-  _subject: Character,
+  subject: Character,
   target: Character,
+  otherIslanders: Character[] = [],
 ): InteractionTopic {
-  const tgt = firstWord(target.name);
   const pools: Record<InteractionTopicKind, string[]> = {
-    person: [
-      `${tgt}'s personality`,
-      `what ${tgt} is like lately`,
-      `how ${tgt} handles stress`,
-    ],
+    person: otherIslanders
+      .filter((c) => c.id !== subject.id && c.id !== target.id)
+      .map((c) => firstWord(c.name))
+      .concat(['Mom', 'Boss', 'Ex'])
+      .filter(Boolean),
     thing: [
-      'their favorite snack',
-      'a cool gadget',
-      'something they recently bought',
+      'an apple',
+      'a bone',
+      'a car',
+      'a sword',
+      'an epic album',
+      'a mysterious book',
+      'a dildo',
     ],
     activity: [
-      'going for a walk',
-      'playing games together',
-      'learning a new skill',
+      'dancing',
+      'killing',
+      'passing time',
+      'taking the dog out',
+      'cooking',
+      'sleeping',
     ],
     other: [
-      'the weather today',
-      'their favorite season',
-      'getting some rest',
+      'technology',
+      'science',
+      'sex',
+      'the end of the world',
+      'magic',
+      'politics',
     ],
   };
   const kind = pickFromCatalog(TOPIC_KINDS);
   const pool = pools[kind];
+  if (pool.length === 0) {
+    return { text: 'magic', kind: 'other' };
+  }
   return {
     text: pool[Math.floor(Math.random() * pool.length)],
     kind,
@@ -300,7 +313,11 @@ export function generateQuickFillCharacter(
     byTargetName[target.name] = tripletFrom(() =>
       generateLocalOutgoingNickname(tStub, target),
     );
-    interactionTopics[target.name] = generateLocalInteractionTopic(stub, target);
+    interactionTopics[target.name] = generateLocalInteractionTopic(
+      stub,
+      target,
+      existingCharacters,
+    );
   }
 
   return {

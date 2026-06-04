@@ -55,12 +55,30 @@ const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or ge
 - If the source is obscure, use Extra notes to lock canon; never invent an unrelated franchise or OC voice.`;
 
 const INTERACTION_TOPIC_RULES = `INTERACTION TOPICS (Living the Dream):
-- Each topic value MUST be an object: { "text": "short topic in English", "kind": "person"|"thing"|"activity"|"other" }
-- kind "person": the topic is mainly about a person or relationship type (generic — never a copyrighted name)
-- kind "thing": the topic is mainly about an object, food, place, or tangible thing
-- kind "activity": the topic is mainly about a hobby, sport, or shared activity
-- kind "other": anything that does not fit the above
-- text must be generic island dialogue — no franchise or trademark names`;
+- Each topic value MUST be an object: { "text": "...", "kind": "person"|"thing"|"activity"|"other" }
+- Pick the kind that matches the text shape below; text and kind MUST stay consistent.
+- Keep text short (a few words).
+
+kind "thing" — a concrete object or item:
+- text MUST start with "a" or "an" followed by a simple noun phrase (one object).
+- Good: "an apple", "a bone", "a car", "a sword", "a dildo", "an epic album", "a mysterious book"
+- Bad: "food", "their favorite snack", "something cool" (too vague or not article + object).
+
+kind "activity" — something you do:
+- text MUST be a single verb OR a short verb phrase (gerund or infinitive-style fragment).
+- Good: "dancing", "killing", "fucking", "taking the dog out", "passing time", "cooking", "sleeping"
+- Bad: "video games", "a walk" (use kind "thing" → "a walk" or kind "other" → "video games").
+
+kind "person" — gossip about someone else:
+- text MUST be ONLY a character name — no articles, titles, or extra words.
+- Pick someone from the speaker's or target's source lore (shared universe, rival, friend, boss, ex, etc.) who would be funny or awkward for THIS pair to talk about.
+- Good: "Wario", "Peach", "Bowser", "Ganondorf" (one name from canon tied to the relationship)
+- Bad: "Peach's sister", "that guy", "my boss" (not a bare name).
+
+kind "other" — any other simple subject:
+- text is a short plain topic label (concept or theme), usually WITHOUT "a/an".
+- Good: "technology", "science", "sex", "the end of the world", "magic", "politics", "childhood"
+- Bad: "an apple" (use kind "thing"), "dancing" (use kind "activity"), "Mario" (use kind "person").`;
 
 const LTD_GIFTS_RULES = `LEVEL-UP GIFTS (Tomodachi Life: Living the Dream — pick EXACT catalog names):
 Suggest exactly ONE value per JSON key below. Each value MUST be copied exactly from the allowed list for that key (same spelling and punctuation).
@@ -230,7 +248,7 @@ Return ONLY valid JSON:
 {
   ${includeDefaults ? '"nicknameDefault": ["canon nickname here"],' : ''}
   "byTargetName": { "Cast Member Name": ["canon nickname here"] },
-  "interactionTopics": { "Cast Member Name": { "text": "topic here", "kind": "activity" } }
+  "interactionTopics": { "Cast Member Name": { "text": "dancing", "kind": "activity" }, "Other Name": { "text": "an apple", "kind": "thing" } }
 }`;
 }
 
@@ -398,13 +416,14 @@ ${characterIdentityBlock(target.name, target.extra)}
 
 Determine the relationship/interactions between these two characters.
 Suggest a specific topic or conversation starter that Character 1 ("${subject.name}") would bring up when talking to Character 2 ("${target.name}").
+Choose the best kind (thing / activity / person / other) and shape the text exactly as that kind requires.
 
 ${TOMODACHI_LINGO_RULES}
 ${INTERACTION_TOPIC_RULES}
 
 Return ONLY valid JSON:
 {
-  "topic": { "text": "topic here", "kind": "thing" }
+  "topic": { "text": "an apple", "kind": "thing" }
 }`;
 }
 
@@ -425,13 +444,15 @@ Suggest exactly ONE conversation topic for each of the other characters listed a
 The topic should be a specific, interesting, and fun subject that "${subject.name}" would talk to them about, based on their backgrounds or lore.
 
 ${INTERACTION_TOPIC_RULES}
-- Keep text short (a few words or a single sentence).
+- Match each topic to the speaker/target relationship; vary kinds across targets when it fits.
 
 Return ONLY valid JSON in the format:
 {
   "topics": {
-    "Target Name 1": { "text": "topic here", "kind": "activity" },
-    "Target Name 2": { "text": "topic here", "kind": "thing" }
+    "Target Name 1": { "text": "dancing", "kind": "activity" },
+    "Target Name 2": { "text": "an apple", "kind": "thing" },
+    "Target Name 3": { "text": "Bowser", "kind": "person" },
+    "Target Name 4": { "text": "magic", "kind": "other" }
   }
 }`;
 }

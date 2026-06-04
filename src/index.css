@@ -919,6 +919,36 @@ img.avatar {
   color: var(--text-muted);
 }
 
+.editor-section {
+  margin-top: 1rem;
+}
+
+.editor-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.editor-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.editor-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.btn-active {
+  background: var(--selected-bg);
+  color: var(--accent);
+}
+
 .phrases-panel {
   margin-bottom: 0;
 }
@@ -992,7 +1022,9 @@ img.avatar {
 }
 
 /* Nicknames */
-.nicknames-panel {
+.nicknames-panel,
+.gifts-panel,
+.topics-panel {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1648,16 +1680,21 @@ img.avatar {
   }
 
   .phrases-panel,
+  .gifts-panel,
+  .topics-panel,
   .nicknames-panel {
     align-self: start;
   }
 
-  .phrases-panel {
+  .phrases-panel,
+  .gifts-panel,
+  .topics-panel {
     grid-column: 1;
   }
 
   .nicknames-panel {
     grid-column: 2;
+    grid-row: 2 / -1;
   }
 }
 

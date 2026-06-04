@@ -298,6 +298,64 @@ export async function generateFullCharacter(
   return applyShortTextLimitsToGeneration(generation);
 }
 
+export async function generateAllCharacterPhrases(
+  apiKey: string,
+  name: string,
+  extra?: string,
+  options?: GenerateCallOptions,
+): Promise<GeneratedPhrases> {
+  const { phrases } = await generateCharacterPhrases(
+    apiKey,
+    name,
+    extra,
+    options,
+  );
+  return applyShortTextLimitsToGeneration({
+    phrases,
+    levelUpRewards: {
+      song: '',
+      interior: '',
+      clothing: '',
+      hat: '',
+      goods: '',
+      quirks: '',
+    },
+    outgoing: { nicknameDefault: ['', '', ''], byTargetName: {} },
+    interactionTopics: {},
+    incoming: { bySpeakerName: {} },
+  }).phrases;
+}
+
+export async function generateAllCharacterNicknames(
+  apiKey: string,
+  name: string,
+  characters: Character[],
+  extra?: string,
+  options?: GenerateCallOptions,
+): Promise<GeneratedOutgoingNicknames> {
+  let result = await generateCharacterOutgoingNicknames(
+    apiKey,
+    name,
+    characters,
+    extra,
+    options,
+  );
+  if (outgoingHasGenericNicknames(result.outgoing)) {
+    throwIfAborted(options?.signal);
+    const retry = await generateCharacterOutgoingNicknames(
+      apiKey,
+      name,
+      characters,
+      extra,
+      options,
+    );
+    if (!outgoingHasGenericNicknames(retry.outgoing)) {
+      result = retry;
+    }
+  }
+  return result.outgoing;
+}
+
 export function extractFirstLine(
   raw: Record<string, unknown>,
   keys: string[],

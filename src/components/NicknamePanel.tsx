@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MAX_NICKNAME_OPTIONS, MAX_SHORT_TEXT_LENGTH } from '../constants';
-import {
-  countMissingNicknamePairs,
-  getMissingNicknamePairs,
-} from '../lib/missingNicknames';
 import { getPairNicknamesForSearch } from '../lib/nicknames';
 import type { Character } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CommunityNicknamesButton } from './CommunityNicknamesButton';
 import { CharacterAvatar } from './CharacterAvatar';
+import { EditorSectionHeader } from './EditorSectionHeader';
 
 const MAX_VISIBLE = 24;
 
@@ -16,8 +13,6 @@ interface NicknamePanelProps {
   subject: Character;
   allCharacters: Character[];
   focusCharacterId?: string | null;
-  islandersOpen: boolean;
-  onIslandersOpenChange: (open: boolean) => void;
   onOpenCharacter: (id: string) => void;
   onUpdateDefaultAt: (index: number, value: string) => void;
   onAddDefault: () => void;
@@ -32,7 +27,7 @@ interface NicknamePanelProps {
   communityNicknamesEnabled?: boolean;
   generatingKey?: string | null;
   onGenerateDefault?: () => void;
-  onGenerateMissing?: () => void;
+  onRegenerateAll?: () => void;
   onAddDefaultNickname?: (value: string) => void;
 }
 
@@ -171,31 +166,6 @@ function IslanderNicknameCard({
   );
 }
 
-function CollapsibleSummary({
-  open,
-  onToggle,
-  children,
-}: {
-  open: boolean;
-  onToggle: (open: boolean) => void;
-  children: ReactNode;
-}) {
-  return (
-    <summary
-      className="nicknames-collapsible-summary"
-      onClick={(e) => {
-        e.preventDefault();
-        onToggle(!open);
-      }}
-    >
-      <span className="nicknames-collapsible-chevron" aria-hidden="true">
-        {open ? '▾' : '▸'}
-      </span>
-      {children}
-    </summary>
-  );
-}
-
 function filterIslanders(
   others: Character[],
   subject: Character,
@@ -216,8 +186,6 @@ export function NicknamePanel({
   subject,
   allCharacters,
   focusCharacterId,
-  islandersOpen,
-  onIslandersOpenChange,
   onOpenCharacter,
   onUpdateDefaultAt,
   onAddDefault,
@@ -232,15 +200,19 @@ export function NicknamePanel({
   communityNicknamesEnabled,
   generatingKey,
   onGenerateDefault,
-  onGenerateMissing,
+  onRegenerateAll,
   onAddDefaultNickname,
 }: NicknamePanelProps) {
+  const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
     if (!focusCharacterId) return;
     const focus = allCharacters.find((c) => c.id === focusCharacterId);
-    if (focus) setFilter(focus.name);
+    if (focus) {
+      setFilter(focus.name);
+      setFilterOpen(true);
+    }
   }, [focusCharacterId, subject.id, allCharacters]);
 
   const others = useMemo(
@@ -256,122 +228,101 @@ export function NicknamePanel({
 
   const defaults = subject.nicknameDefaults;
   const canAddDefault = defaults.length < MAX_NICKNAME_OPTIONS;
-  const missingPairs = useMemo(
-    () => getMissingNicknamePairs(subject, allCharacters),
-    [subject, allCharacters],
-  );
-  const missingCount = countMissingNicknamePairs(missingPairs);
-  const batchBusy = generatingKey === 'nick:missing';
 
   return (
-    <section className="nicknames-panel">
-      <input
-        type="search"
-        className="filter-input filter-input-sm nicknames-panel-filter"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        aria-label="Filter islanders"
-      />
-
-      <details className="nicknames-collapsible" open={islandersOpen}>
-        <CollapsibleSummary
-          open={islandersOpen}
-          onToggle={onIslandersOpenChange}
+    <section className="nicknames-panel editor-section">
+      <EditorSectionHeader title="Nicknames">
+        <button
+          type="button"
+          className={`btn btn-ghost btn-sm${filterOpen ? ' btn-active' : ''}`}
+          onClick={() => setFilterOpen((open) => !open)}
+          aria-pressed={filterOpen}
         >
-          Nicknames with islanders
-        </CollapsibleSummary>
-        <div className="nicknames-collapsible-body">
-          <div className="nickname-compact-block">
-            <div className="nickname-compact-head">
-              <span className="nickname-compact-label">
-                Defaults (new islanders)
-              </span>
-              <span className="nickname-compact-actions">
-                {communityNicknamesEnabled && onAddDefaultNickname && (
-                  <CommunityNicknamesButton
-                    characterName={subject.name}
-                    existingNicknames={defaults}
-                    disabled={!canAddDefault}
-                    onAddNickname={onAddDefaultNickname}
-                  />
-                )}
-                {hasApiKey && onGenerateDefault && (
-                  <AiSparkButton
-                    busy={generatingKey === 'nick:default'}
-                    disabled={!canAddDefault}
-                    title="Canon AI — default nickname from source"
-                    onClick={onGenerateDefault}
-                  />
-                )}
-              </span>
-            </div>
-            {defaults.length > 0 && (
-              <NicknameChipList
-                values={defaults}
-                onUpdateAt={onUpdateDefaultAt}
-                onRemoveAt={onRemoveDefault}
-                ariaLabel="Default nickname"
-                maxLength={MAX_SHORT_TEXT_LENGTH}
+          {filterOpen ? 'Hide filter' : 'Show filter'}
+        </button>
+        {hasApiKey && onRegenerateAll && others.length > 0 && (
+          <AiSparkButton
+            busy={generatingKey === 'nicknames:all'}
+            disabled={generatingKey === 'nicknames:all'}
+            title="Canon AI — regenerate all nicknames from source"
+            onClick={onRegenerateAll}
+          />
+        )}
+      </EditorSectionHeader>
+
+      {filterOpen && (
+        <input
+          type="search"
+          className="filter-input filter-input-sm nicknames-panel-filter"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          aria-label="Filter islanders"
+        />
+      )}
+
+      <div className="nickname-compact-block">
+        <div className="nickname-compact-head">
+          <span className="nickname-compact-label">Defaults (new islanders)</span>
+          <span className="nickname-compact-actions">
+            {communityNicknamesEnabled && onAddDefaultNickname && (
+              <CommunityNicknamesButton
+                characterName={subject.name}
+                existingNicknames={defaults}
+                disabled={!canAddDefault}
+                onAddNickname={onAddDefaultNickname}
               />
             )}
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm btn-add-below"
-              disabled={!canAddDefault}
-              onClick={onAddDefault}
-            >
-              +
-            </button>
-          </div>
-
-          {hasApiKey && onGenerateMissing && others.length > 0 && (
-            <div className="nickname-batch-toolbar">
+            {hasApiKey && onGenerateDefault && (
               <AiSparkButton
-                busy={batchBusy}
-                disabled={missingCount === 0}
-                title={
-                  missingCount === 0
-                    ? 'All islander nicknames are set'
-                    : `Canon AI — fill ${missingCount} missing from source`
-                }
-                onClick={onGenerateMissing}
+                busy={generatingKey === 'nick:default'}
+                disabled={!canAddDefault}
+                title="Canon AI — default nickname from source"
+                onClick={onGenerateDefault}
               />
-              <span className="nickname-batch-label">
-                {missingCount === 0
-                  ? 'All islander nicknames set'
-                  : `Fill missing (${missingCount})`}
-              </span>
-            </div>
-          )}
-
-          <ul className="nickname-pair-grid">
-            {visibleIslanders.length === 0 ? (
-              <li className="empty-hint">No matches.</li>
-            ) : (
-              visibleIslanders.slice(0, MAX_VISIBLE).map((other) => (
-                <IslanderNicknameCard
-                  key={other.id}
-                  subject={subject}
-                  other={other}
-                  outgoingValues={subject.nicknames[other.id] ?? []}
-                  incomingValues={other.nicknames[subject.id] ?? []}
-                  onOpenCharacter={onOpenCharacter}
-                  onUpdateOutgoingAt={(i, v) =>
-                    onUpdateOutgoingAt(other.id, i, v)
-                  }
-                  onRemoveOutgoingAt={(i) => onRemoveOutgoing(other.id, i)}
-                  onAddOutgoing={() => onAddOutgoing(other.id)}
-                  onUpdateIncomingAt={(i, v) =>
-                    onUpdateIncomingAt(other.id, i, v)
-                  }
-                  onRemoveIncomingAt={(i) => onRemoveIncoming(other.id, i)}
-                  onAddIncoming={() => onAddIncoming(other.id)}
-                />
-              ))
             )}
-          </ul>
+          </span>
         </div>
-      </details>
+        {defaults.length > 0 && (
+          <NicknameChipList
+            values={defaults}
+            onUpdateAt={onUpdateDefaultAt}
+            onRemoveAt={onRemoveDefault}
+            ariaLabel="Default nickname"
+            maxLength={MAX_SHORT_TEXT_LENGTH}
+          />
+        )}
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm btn-add-below"
+          disabled={!canAddDefault}
+          onClick={onAddDefault}
+        >
+          +
+        </button>
+      </div>
+
+      <ul className="nickname-pair-grid">
+        {visibleIslanders.length === 0 ? (
+          <li className="empty-hint">No matches.</li>
+        ) : (
+          visibleIslanders.slice(0, MAX_VISIBLE).map((other) => (
+            <IslanderNicknameCard
+              key={other.id}
+              subject={subject}
+              other={other}
+              outgoingValues={subject.nicknames[other.id] ?? []}
+              incomingValues={other.nicknames[subject.id] ?? []}
+              onOpenCharacter={onOpenCharacter}
+              onUpdateOutgoingAt={(i, v) => onUpdateOutgoingAt(other.id, i, v)}
+              onRemoveOutgoingAt={(i) => onRemoveOutgoing(other.id, i)}
+              onAddOutgoing={() => onAddOutgoing(other.id)}
+              onUpdateIncomingAt={(i, v) => onUpdateIncomingAt(other.id, i, v)}
+              onRemoveIncomingAt={(i) => onRemoveIncoming(other.id, i)}
+              onAddIncoming={() => onAddIncoming(other.id)}
+            />
+          ))
+        )}
+      </ul>
     </section>
   );
 }

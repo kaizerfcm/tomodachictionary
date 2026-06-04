@@ -3,6 +3,7 @@ import { isShortPhraseType } from '../lib/textLimits';
 import { PHRASE_TYPES, type PhraseType } from '../types';
 import { AiSparkButton } from './AiSparkButton';
 import { CommunityPhrasesButton } from './CommunityPhrasesButton';
+import { EditorSectionHeader } from './EditorSectionHeader';
 
 interface PhraseSectionProps {
   label: string;
@@ -113,6 +114,7 @@ export function PhraseEditor({
   hasApiKey,
   generatingKey,
   onGeneratePhrase,
+  onRegenerateAllPhrases,
 }: {
   characterName: string;
   communityEnabled?: boolean;
@@ -123,9 +125,20 @@ export function PhraseEditor({
   hasApiKey?: boolean;
   generatingKey?: string | null;
   onGeneratePhrase?: (type: PhraseType) => void;
+  onRegenerateAllPhrases?: () => void;
 }) {
   return (
-    <section className="phrases-panel">
+    <section className="phrases-panel editor-section">
+      <EditorSectionHeader title="Phrases">
+        {hasApiKey && onRegenerateAllPhrases && (
+          <AiSparkButton
+            onClick={onRegenerateAllPhrases}
+            busy={generatingKey === 'phrases:all'}
+            disabled={generatingKey === 'phrases:all'}
+            title="Canon AI — regenerate all phrase types from source"
+          />
+        )}
+      </EditorSectionHeader>
       {PHRASE_TYPES.map(({ key, label }) => (
         <PhraseSection
           key={key}

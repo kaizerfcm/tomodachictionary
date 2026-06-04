@@ -1,9 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   getGridSort,
-  getIslandersNickOpen,
   setGridSort,
-  setIslandersNickOpen,
   type GridSort,
 } from './lib/uiPrefs';
 import { sortCharacters } from './lib/sortCharacters';
@@ -21,21 +19,11 @@ import {
 } from './components/AiGenerationStatus';
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
-import { CharacterRegenerateReviewModal } from './components/CharacterRegenerateReviewModal';
-import {
-  IslandRegenerateModal,
-  type IslandRegenProgress,
-} from './components/IslandRegenerateModal';
-import {
-  IslandRegenerateOptionsModal,
-  type IslandRegenMode,
-} from './components/IslandRegenerateOptionsModal';
 import { AiLogsModal } from './components/AiLogsModal';
-import { generateIslandBatchRegeneration } from './lib/ai/islandBatchRegen';
-import { AiError } from './lib/ai/errors';
 import {
+  generateAllCharacterNicknames,
+  generateAllCharacterPhrases,
   generateFullCharacter,
-  generateMissingIslandNicknamesBatched,
   generateOneNickname,
   generateOnePhrase,
   generateLevelUpRewards,
@@ -48,15 +36,12 @@ import {
 } from './lib/gemini/prompts';
 import { generateQuickFillCharacter } from './lib/localGeneration';
 import {
-  allNewRegenerateChoices,
-  buildRegeneratedCharacterContent,
+  nicknamesFromOutgoing,
+  phrasesFromGeneration,
 } from './lib/characterRegeneration';
-import {
-  countMissingNicknamePairs,
-  getMissingNicknamePairs,
-} from './lib/missingNicknames';
 import type { FullCharacterGeneration } from './lib/gemini/types';
-import type { Character, PhraseType } from './types';
+import type { PhraseType } from './types';
+import { AiError } from './lib/ai/errors';
 import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
 import { aiSuccessMessage } from './lib/aiGenerationMessages';
@@ -64,14 +49,6 @@ import { aiSuccessMessage } from './lib/aiGenerationMessages';
 type View = 'main' | 'config';
 
 type AiResult<T> = { ok: true; value: T } | { ok: false; error: string };
-
-/** Pause between sequential island regen API calls to reduce rate-limit errors. */
-const ISLAND_REGEN_DELAY_MS = 1500;
-const ISLAND_REGEN_BATCH_FAILURE_ID = '__batch__';
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function AppMain() {
   const { preference: themePreference, setPreference: setThemePreference } =
@@ -81,13 +58,9 @@ export function AppMain() {
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<AiNotice | null>(null);
   const [gridSort, setGridSortState] = useState<GridSort>(getGridSort);
-  const [islandersNickOpen, setIslandersNickOpenState] = useState(
-    getIslandersNickOpen,
-  );
   const [nicknameFilterFromId, setNicknameFilterFromId] = useState<string | null>(
     null,
   );
-  const [socialRewardsOpen, setSocialRewardsOpen] = useState(true);
   const [pendingImport, setPendingImport] = useState<{
     data: import('./types').DictionaryData;
     suggestedName: string;
@@ -100,19 +73,7 @@ export function AppMain() {
     source: 'quickFill' | 'canonAi';
   } | null>(null);
   const [newCharReviewKey, setNewCharReviewKey] = useState(0);
-  const [regenReview, setRegenReview] = useState<{
-    snapshot: Character;
-    generation: FullCharacterGeneration;
-  } | null>(null);
-  const [regenReviewKey, setRegenReviewKey] = useState(0);
-  const [islandRegen, setIslandRegen] = useState<IslandRegenProgress | null>(
-    null,
-  );
-  const [islandRegenModalOpen, setIslandRegenModalOpen] = useState(false);
-  const [islandRegenOptionsOpen, setIslandRegenOptionsOpen] = useState(false);
   const [aiLogsOpen, setAiLogsOpen] = useState(false);
-  const islandRegenAbortRef = useRef<AbortController | null>(null);
-  const islandRegenRunIdRef = useRef(0);
 
   const {
     characters,
@@ -183,11 +144,6 @@ export function AppMain() {
   const handleGridSortChange = (sort: GridSort) => {
     setGridSortState(sort);
     setGridSort(sort);
-  };
-
-  const handleIslandersNickOpenChange = (open: boolean) => {
-    setIslandersNickOpenState(open);
-    setIslandersNickOpen(open);
   };
 
   const handleExportJson = () => {
@@ -318,368 +274,56 @@ export function AppMain() {
     });
   }, [apiKey, characters, newCharReview, runAi]);
 
-  const handleRegenerateExistingCharacter = useCallback(async () => {
-    if (!selected || !hasApiKey) return;
-    const cast = characters.filter((c) => c.id !== selected.id);
-    const generation = await runAi('regen-char', () =>
-      generateFullCharacter(apiKey, selected.name, cast, selected.extra),
-    );
-    if (!generation) return;
-    setRegenReview({
-      snapshot: selected,
-      generation,
-    });
-    setRegenReviewKey((k) => k + 1);
-  }, [apiKey, characters, hasApiKey, runAi, selected]);
-
-  const runIslandRegeneration = useCallback(
-    async (targets: Character[], mode: IslandRegenMode) => {
-      if (targets.length === 0) return;
-
-      const runId = ++islandRegenRunIdRef.current;
-      const abortController = new AbortController();
-      islandRegenAbortRef.current = abortController;
-      const signal = abortController.signal;
-
-      const isActive = () =>
-        islandRegenRunIdRef.current === runId && !signal.aborted;
-
-      const pushProgress = (next: IslandRegenProgress) => {
-        if (islandRegenRunIdRef.current !== runId) return;
-        setIslandRegen(next);
-      };
-
-      pushProgress({
-        mode,
-        phase: 'running',
-        index: 0,
-        total: targets.length,
-        currentName: targets[0].name,
-        succeeded: [],
-        failed: [],
-      });
-      setIslandRegenModalOpen(true);
-
-      if (mode === 'batch') {
-        pushProgress({
-          mode,
-          phase: 'running',
-          index: 0,
-          total: 1,
-          islanderCount: targets.length,
-          currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-          succeeded: [],
-          failed: [],
-        });
-
-        const result = await executeAi(
-          'regen-island-batch',
-          () => generateIslandBatchRegeneration(apiKey, targets, { signal }),
-          { quiet: true, signal },
-        );
-
-        if (!isActive()) {
-          pushProgress({
-            mode,
-            phase: 'stopped',
-            index: 0,
-            total: 1,
-            islanderCount: targets.length,
-            currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-            succeeded: [],
-            failed: [],
-          });
-          return;
-        }
-
-        if (result.ok) {
-          const batch = result.value;
-          try {
-            replaceActiveIsland({ version: 1, characters: batch.characters });
-            const succeeded = targets
-              .filter((c) => batch.updatedIds.includes(c.id))
-              .map((c) => c.name);
-            const warnings = batch.missed.map((m) => ({
-              characterId: m.id,
-              characterName: m.name,
-              message: 'Missing from batch response — kept original data',
-            }));
-            pushProgress({
-              mode,
-              phase: 'done',
-              index: 0,
-              total: 1,
-              islanderCount: targets.length,
-              currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-              succeeded,
-              failed: [],
-              warnings,
-            });
-            const missedNames = batch.missed.map((m) => m.name).join(', ');
-            setAiNotice({
-              kind: batch.missed.length > 0 ? 'warning' : 'success',
-              message:
-                batch.missed.length > 0
-                  ? `Regenerated ${succeeded.length} of ${targets.length} islanders. Kept original: ${missedNames}.`
-                  : `Regenerated ${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-            });
-          } catch (e) {
-            const msg =
-              e instanceof Error ? e.message : 'Failed to save regenerated island';
-            pushProgress({
-              mode,
-              phase: 'done',
-              index: 0,
-              total: 1,
-              islanderCount: targets.length,
-              currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-              succeeded: [],
-              failed: [
-                {
-                  characterId: ISLAND_REGEN_BATCH_FAILURE_ID,
-                  characterName: 'All islanders (batch)',
-                  error: msg,
-                },
-              ],
-            });
-          }
-        } else {
-          pushProgress({
-            mode,
-            phase: result.error === 'Generation cancelled' ? 'stopped' : 'done',
-            index: 0,
-            total: 1,
-            islanderCount: targets.length,
-            currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-            succeeded: [],
-            failed:
-              result.error === 'Generation cancelled'
-                ? []
-                : [
-                    {
-                      characterId: ISLAND_REGEN_BATCH_FAILURE_ID,
-                      characterName: 'All islanders (batch)',
-                      error: result.error,
-                    },
-                  ],
-          });
-        }
-        return;
-      }
-
-      const succeeded: string[] = [];
-      const failed: IslandRegenProgress['failed'] = [];
-
-      for (let i = 0; i < targets.length; i++) {
-        if (!isActive()) {
-          pushProgress({
-            mode,
-            phase: 'stopped',
-            index: i,
-            total: targets.length,
-            currentName: targets[i]?.name ?? '',
-            succeeded: [...succeeded],
-            failed: [...failed],
-          });
-          return;
-        }
-
-        const character = targets[i];
-        pushProgress({
-          mode,
-          phase: 'running',
-          index: i,
-          total: targets.length,
-          currentName: character.name,
-          succeeded: [...succeeded],
-          failed: [...failed],
-        });
-
-        const cast = characters.filter((c) => c.id !== character.id);
-        const result = await executeAi(
-          `regen-island-${character.id}`,
-          () =>
-            generateFullCharacter(
-              apiKey,
-              character.name,
-              cast,
-              character.extra,
-              { signal },
-            ),
-          { quiet: true, signal },
-        );
-
-        if (!isActive()) {
-          pushProgress({
-            mode,
-            phase: 'stopped',
-            index: i,
-            total: targets.length,
-            currentName: character.name,
-            succeeded: [...succeeded],
-            failed: [...failed],
-          });
-          return;
-        }
-
-        if (result.ok) {
-          const choices = allNewRegenerateChoices(
-            character,
-            characters,
-            result.value,
-          );
-          const patch = buildRegeneratedCharacterContent(
-            character,
-            result.value,
-            characters,
-            choices,
-          );
-          applyRegeneratedContent(character.id, patch);
-          succeeded.push(character.name);
-        } else if (result.error !== 'Generation cancelled') {
-          failed.push({
-            characterId: character.id,
-            characterName: character.name,
-            error: result.error,
-          });
-        } else {
-          pushProgress({
-            mode,
-            phase: 'stopped',
-            index: i,
-            total: targets.length,
-            currentName: character.name,
-            succeeded: [...succeeded],
-            failed: [...failed],
-          });
-          return;
-        }
-
-        if (i < targets.length - 1 && isActive()) {
-          await sleep(ISLAND_REGEN_DELAY_MS);
-        }
-      }
-
-      if (!isActive()) return;
-
-      pushProgress({
-        mode,
-        phase: 'done',
-        index: targets.length - 1,
-        total: targets.length,
-        currentName: targets[targets.length - 1]?.name ?? '',
-        succeeded: [...succeeded],
-        failed: [...failed],
-      });
-
-      if (failed.length === 0 && succeeded.length > 0) {
-        setAiNotice({
-          kind: 'success',
-          message: `Regenerated ${succeeded.length} islander${succeeded.length === 1 ? '' : 's'}`,
-        });
-      }
-    },
-    [
-      apiKey,
-      applyRegeneratedContent,
-      characters,
-      executeAi,
-      replaceActiveIsland,
-    ],
-  );
-
-  const handleOpenIslandRegenOptions = useCallback(() => {
-    if (!hasApiKey || characters.length === 0) return;
-    setIslandRegenOptionsOpen(true);
-  }, [characters.length, hasApiKey]);
-
-  const handleStartIslandRegeneration = useCallback(
-    (mode: IslandRegenMode) => {
-      setIslandRegenOptionsOpen(false);
-      void runIslandRegeneration(characters, mode);
-    },
-    [characters, runIslandRegeneration],
-  );
-
-  const handleStopIslandRegeneration = useCallback(() => {
-    islandRegenAbortRef.current?.abort();
-  }, []);
-
-  const handleRetryFailedIslandRegeneration = useCallback(() => {
-    if (!islandRegen?.failed.length) return;
-    if (
-      islandRegen.mode === 'batch' ||
-      islandRegen.failed.some((f) => f.characterId === ISLAND_REGEN_BATCH_FAILURE_ID)
-    ) {
-      void runIslandRegeneration(characters, 'batch');
-      return;
-    }
-    const failedIds = new Set(islandRegen.failed.map((f) => f.characterId));
-    const toRetry = characters.filter((c) => failedIds.has(c.id));
-    void runIslandRegeneration(toRetry, 'sequential');
-  }, [characters, islandRegen, runIslandRegeneration]);
-
-  const handleHideIslandRegenerationModal = useCallback(() => {
-    setIslandRegenModalOpen(false);
-    if (islandRegen?.phase !== 'running') {
-      setIslandRegen(null);
-    }
-  }, [islandRegen?.phase]);
-
-  const islandRegenBanner = useMemo(() => {
-    if (!islandRegen || islandRegenModalOpen) return null;
-    const processed = islandRegen.succeeded.length + islandRegen.failed.length;
-    if (islandRegen.phase === 'running') {
-      if (islandRegen.mode === 'batch') {
-        const n = islandRegen.islanderCount ?? processed;
-        return {
-          label: `Island batch regeneration in progress (1 request · ${n} islander${n === 1 ? '' : 's'})…`,
-          onShow: () => setIslandRegenModalOpen(true),
-        };
-      }
-      return {
-        label: `Island regeneration in progress (${processed}/${islandRegen.total})…`,
-        onShow: () => setIslandRegenModalOpen(true),
-      };
-    }
-    if (islandRegen.failed.length > 0) {
-      return {
-        label: `Island regeneration finished with ${islandRegen.failed.length} failure(s)`,
-        onShow: () => setIslandRegenModalOpen(true),
-      };
-    }
-    return {
-      label: 'Island regeneration complete',
-      onShow: () => setIslandRegenModalOpen(true),
-    };
-  }, [islandRegen, islandRegenModalOpen]);
-
-  const handleConfirmRegenerateReview = useCallback(
-    (patch: {
-      phrases: Character['phrases'];
-      nicknameDefaults: string[];
-      nicknames: Record<string, string[]>;
-      levelUpRewards?: Character['levelUpRewards'];
-      interactionTopics?: Character['interactionTopics'];
-    }) => {
-      if (!regenReview) return;
-      applyRegeneratedContent(regenReview.snapshot.id, patch);
-      setRegenReview(null);
-      setAiNotice({
-        kind: 'success',
-        message: 'Character updated with selected lines',
-      });
-    },
-    [applyRegeneratedContent, regenReview],
-  );
-
-  const handleGenerateLevelUpRewards = useCallback(async () => {
+  const handleRegenerateAllPhrases = useCallback(async () => {
     if (!selected) return;
-    const rewards = await runAi('rewards', () =>
+    const phrases = await runAi('phrases:all', () =>
+      generateAllCharacterPhrases(apiKey, selected.name, selected.extra),
+    );
+    if (!phrases) return;
+    applyRegeneratedContent(selected.id, {
+      phrases: phrasesFromGeneration(phrases),
+      nicknameDefaults: selected.nicknameDefaults,
+      nicknames: selected.nicknames,
+      levelUpRewards: selected.levelUpRewards,
+      interactionTopics: selected.interactionTopics,
+    });
+    setAiNotice({ kind: 'success', message: 'Phrases regenerated' });
+  }, [apiKey, applyRegeneratedContent, runAi, selected]);
+
+  const handleRegenerateAllNicknames = useCallback(async () => {
+    if (!selected) return;
+    const cast = characters.filter((c) => c.id !== selected.id);
+    const outgoing = await runAi('nicknames:all', () =>
+      generateAllCharacterNicknames(
+        apiKey,
+        selected.name,
+        cast,
+        selected.extra,
+      ),
+    );
+    if (!outgoing) return;
+    const { nicknameDefaults, nicknames } = nicknamesFromOutgoing(
+      outgoing,
+      characters,
+    );
+    applyRegeneratedContent(selected.id, {
+      phrases: selected.phrases,
+      nicknameDefaults,
+      nicknames,
+      levelUpRewards: selected.levelUpRewards,
+      interactionTopics: selected.interactionTopics,
+    });
+    setAiNotice({ kind: 'success', message: 'Nicknames regenerated' });
+  }, [apiKey, applyRegeneratedContent, characters, runAi, selected]);
+
+  const handleRegenerateAllGifts = useCallback(async () => {
+    if (!selected) return;
+    const rewards = await runAi('gifts:all', () =>
       generateLevelUpRewards(apiKey, selected),
     );
     if (rewards) {
       updateLevelUpRewards(selected.id, rewards);
+      setAiNotice({ kind: 'success', message: 'Gifts regenerated' });
     }
   }, [apiKey, runAi, selected, updateLevelUpRewards]);
 
@@ -703,7 +347,7 @@ export function AppMain() {
     [apiKey, characters, runAi, selected, updateInteractionTopic],
   );
 
-  const handleGenerateAllInteractionTopics = useCallback(async () => {
+  const handleRegenerateAllTopics = useCallback(async () => {
     if (!selected) return;
     const targets = characters.filter((c) => c.id !== selected.id);
     if (targets.length === 0) {
@@ -713,31 +357,26 @@ export function AppMain() {
       });
       return;
     }
-    const topics = await runAi('all-topics', () =>
+    const topics = await runAi('topics:all', () =>
       generateMissingInteractionTopics(apiKey, selected, targets),
     );
-    if (topics) {
-      let added = 0;
-      const nameToId = new Map(characters.map((c) => [c.name, c.id]));
-      for (const [targetName, topicVal] of Object.entries(topics)) {
-        const id = nameToId.get(targetName);
-        if (id && topicVal.text.trim()) {
-          updateInteractionTopic(
-            selected.id,
-            id,
-            topicVal.text,
-            topicVal.kind,
-          );
-          added++;
-        }
-      }
-      if (added > 0) {
-        setAiNotice({
-          kind: 'success',
-          message: `Updated ${added} conversation topic${added === 1 ? '' : 's'}`,
-        });
+    if (!topics) return;
+    const nameToId = new Map(characters.map((c) => [c.name, c.id]));
+    for (const [targetName, topicVal] of Object.entries(topics)) {
+      const id = nameToId.get(targetName);
+      if (id && topicVal.text.trim()) {
+        updateInteractionTopic(
+          selected.id,
+          id,
+          topicVal.text,
+          topicVal.kind,
+        );
       }
     }
+    setAiNotice({
+      kind: 'success',
+      message: 'Conversation topics regenerated',
+    });
   }, [apiKey, characters, runAi, selected, updateInteractionTopic]);
 
   const handleGeneratePhrase = useCallback(
@@ -780,61 +419,6 @@ export function AppMain() {
     },
     [addCharacterFull, handleSelectCharacter],
   );
-
-  const handleGenerateMissingNicknames = useCallback(async () => {
-    if (!selected) return;
-    const missing = getMissingNicknamePairs(selected, characters);
-    if (countMissingNicknamePairs(missing) === 0) {
-      setAiNotice({
-        kind: 'success',
-        message: 'All islander nicknames are already set',
-      });
-      return;
-    }
-    const generated = await runAi('nick:missing', () =>
-      generateMissingIslandNicknamesBatched(
-        apiKey,
-        selected,
-        characters,
-        missing,
-      ),
-    );
-    if (!generated) return;
-
-    const nameToId = new Map(characters.map((c) => [c.name, c.id]));
-    let added = 0;
-
-    for (const [name, nick] of Object.entries(generated.outgoing)) {
-      const targetId = nameToId.get(name);
-      if (!targetId || !nick.trim()) continue;
-      if ((selected.nicknames[targetId] ?? []).some((v) => v.trim())) continue;
-      addOutgoingNicknameForTarget(selected.id, targetId, nick);
-      added += 1;
-    }
-
-    for (const [name, nick] of Object.entries(generated.incoming)) {
-      const speakerId = nameToId.get(name);
-      if (!speakerId || !nick.trim()) continue;
-      const speaker = characters.find((c) => c.id === speakerId);
-      if ((speaker?.nicknames[selected.id] ?? []).some((v) => v.trim())) continue;
-      addNicknameForTarget(speakerId, selected.id, nick);
-      added += 1;
-    }
-
-    if (added > 0) {
-      setAiNotice({
-        kind: 'success',
-        message: `Added ${added} nickname${added === 1 ? '' : 's'}`,
-      });
-    }
-  }, [
-    addNicknameForTarget,
-    addOutgoingNicknameForTarget,
-    apiKey,
-    characters,
-    runAi,
-    selected,
-  ]);
 
   const handleDeleteCharacter = useCallback(() => {
     if (!selected) return;
@@ -889,8 +473,6 @@ export function AppMain() {
         onSwitchIsland={switchIsland}
         onCreateIsland={() => createIsland()}
         onRenameIsland={renameActiveIsland}
-        onRegenerateIsland={handleOpenIslandRegenOptions}
-        regeneratingIsland={islandRegen?.phase === 'running'}
       />
       <div className="main-area">
         <div className="main-area-body">
@@ -945,23 +527,19 @@ export function AppMain() {
                 removeNicknameAt(speakerId, selected.id, index)
               }
               onGeneratePhrase={handleGeneratePhrase}
+              onRegenerateAllPhrases={handleRegenerateAllPhrases}
               onGenerateDefaultNickname={handleGenerateDefaultNickname}
-              onGenerateMissingNicknames={handleGenerateMissingNicknames}
-              onRegenerateAll={handleRegenerateExistingCharacter}
+              onRegenerateAllNicknames={handleRegenerateAllNicknames}
               onOpenCharacter={handleOpenFromNicknames}
-              islandersNickOpen={islandersNickOpen}
-              onIslandersNickOpenChange={handleIslandersNickOpenChange}
-              socialRewardsOpen={socialRewardsOpen}
-              onSocialRewardsOpenChange={setSocialRewardsOpen}
               onUpdateLevelUpRewards={(rewards) =>
                 updateLevelUpRewards(selected.id, rewards)
               }
               onUpdateInteractionTopic={(targetId, text, kind) =>
                 updateInteractionTopic(selected.id, targetId, text, kind)
               }
-              onGenerateLevelUpRewards={handleGenerateLevelUpRewards}
+              onRegenerateAllGifts={handleRegenerateAllGifts}
+              onRegenerateAllTopics={handleRegenerateAllTopics}
               onGenerateInteractionTopic={handleGenerateInteractionTopic}
-              onGenerateAllInteractionTopics={handleGenerateAllInteractionTopics}
             />
           ) : (
             <CharacterGrid
@@ -990,9 +568,8 @@ export function AppMain() {
       )}
 
       <AiGenerationStatus
-        busy={generatingKey !== null && !islandRegenBanner}
+        busy={generatingKey !== null}
         notice={saveError ? { kind: 'error', message: saveError } : aiNotice}
-        islandRegenBanner={islandRegenBanner}
         onDismissNotice={() => setAiNotice(null)}
       />
 
@@ -1007,36 +584,6 @@ export function AppMain() {
           onRegenerate={handleRegenerateNewCharacter}
           onConfirm={handleConfirmNewCharacter}
           onClose={() => setNewCharReview(null)}
-        />
-      )}
-
-      {regenReview && (
-        <CharacterRegenerateReviewModal
-          key={regenReviewKey}
-          character={regenReview.snapshot}
-          generation={regenReview.generation}
-          allCharacters={characters}
-          regenerating={generatingKey === 'regen-char'}
-          onRegenerate={handleRegenerateExistingCharacter}
-          onConfirm={handleConfirmRegenerateReview}
-          onClose={() => setRegenReview(null)}
-        />
-      )}
-
-      {islandRegenOptionsOpen && (
-        <IslandRegenerateOptionsModal
-          characterCount={characters.length}
-          onStart={handleStartIslandRegeneration}
-          onCancel={() => setIslandRegenOptionsOpen(false)}
-        />
-      )}
-
-      {islandRegen && islandRegenModalOpen && (
-        <IslandRegenerateModal
-          progress={islandRegen}
-          onStop={handleStopIslandRegeneration}
-          onRetryFailed={handleRetryFailedIslandRegeneration}
-          onHide={handleHideIslandRegenerationModal}
         />
       )}
 

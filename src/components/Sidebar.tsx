@@ -27,8 +27,6 @@ interface SidebarProps {
   onSwitchIsland: (id: string) => void;
   onCreateIsland: () => void;
   onRenameIsland: (name: string) => void;
-  onRegenerateIsland?: () => void;
-  regeneratingIsland?: boolean;
 }
 
 export function Sidebar({
@@ -47,8 +45,6 @@ export function Sidebar({
   onSwitchIsland,
   onCreateIsland,
   onRenameIsland,
-  onRegenerateIsland,
-  regeneratingIsland = false,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed);
   const [listOpen, setListOpen] = useState(getSidebarListOpen);
@@ -136,16 +132,6 @@ export function Sidebar({
             <button type="button" className="btn btn-primary btn-sm btn-block" onClick={onAdd}>
               + Add character
             </button>
-            {hasApiKey && characters.length > 0 && onRegenerateIsland && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm btn-block"
-                disabled={regeneratingIsland}
-                onClick={onRegenerateIsland}
-              >
-                {regeneratingIsland ? 'Regenerating island…' : '✨ Regenerate island'}
-              </button>
-            )}
             {hasApiKey && (
               <span className="api-badge" title="Gemini API key configured">
                 AI on

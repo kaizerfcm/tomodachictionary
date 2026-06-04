@@ -27,6 +27,43 @@ export function tripletToLines(triplet: Triplet): string[] {
   return triplet.map((line) => line.trim()).filter(Boolean);
 }
 
+export function phrasesFromGeneration(
+  generation: FullCharacterGeneration['phrases'],
+): Record<PhraseType, string[]> {
+  const out = {} as Record<PhraseType, string[]>;
+  for (const { key } of PHRASE_TYPES) {
+    const type = key as PhraseType;
+    out[type] = tripletToLines(generation[type] ?? ['', '', '']).slice(
+      0,
+      MAX_PHRASES_PER_TYPE,
+    );
+  }
+  return out;
+}
+
+export function nicknamesFromOutgoing(
+  outgoing: FullCharacterGeneration['outgoing'],
+  characters: Character[],
+): {
+  nicknameDefaults: string[];
+  nicknames: Record<string, string[]>;
+} {
+  const nameToId = new Map(characters.map((c) => [c.name, c.id]));
+  const nicknames: Record<string, string[]> = {};
+  for (const [targetName, triplet] of Object.entries(outgoing.byTargetName)) {
+    const targetId = nameToId.get(targetName);
+    if (!targetId) continue;
+    nicknames[targetId] = tripletToLines(triplet).slice(0, MAX_NICKNAME_OPTIONS);
+  }
+  return {
+    nicknameDefaults: tripletToLines(outgoing.nicknameDefault).slice(
+      0,
+      MAX_NICKNAME_OPTIONS,
+    ),
+    nicknames,
+  };
+}
+
 export function formatDialoguePreview(lines: string[]): string {
   const list = lines.map((line) => line.trim()).filter(Boolean);
   return list.length ? list.join(' · ') : '(empty)';

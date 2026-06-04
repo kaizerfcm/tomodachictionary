@@ -19,18 +19,15 @@ const TOMODACHI_LINGO_RULES = `TOMODACHI LIFE OUTPUT (player-visible text):
 - Target game: Tomodachi Life: Living the Dream dialogue slots — short, spoken, fun lines.
 - Write in ENGLISH for phrases, nicknames, topics, and reward text.
 - Exception: at most ONE iconic catchphrase in its original language if universally recognized (short verbal tic only) across the entire phrase set.
-- NEVER output copyrighted/trademark names, franchise titles, or other characters from the source work in dialogue or suggestions.
-- NEVER reference castmates from the character's franchise — lines must work on a generic Tomodachi island talking to random islanders.
-- Do not browse the web, fetch URLs, or use URL context. Ignore any http/https links in input (including localhost).`;
+- NEVER reference castmates from the character's franchise — lines must work on a generic Tomodachi island talking to random islanders.`;
 
 const NO_URL_RULES = `URL / WEB (required):
-- Do NOT browse the web or fetch URLs.
 - Ignore any http/https links in the input (including localhost).
 - Do not mention browsing failures or unsupported sites in output.`;
 
 const PHRASE_LENGTH_RULES = `PHRASE LENGTH (hard limits — count EVERY character including spaces and punctuation):
 - catchphrases, beforeEating, shoutAtSea, whenHappy, whenSad, whenAngry, whileSleeping, greeting: max ${MAX_PHRASE_LENGTH} characters each. Prefer 8–20.
-- startingSentence, endingSentence: max ${MAX_SHORT_TEXT_LENGTH} characters each (tiny UI fragments — often 1–3 words, e.g. "So," or "...yeah").
+- startingSentence, endingSentence: max ${MAX_SHORT_TEXT_LENGTH} characters each (tiny UI fragments — often 1–3 words), stick heavily to the canon here.
 - If a famous canon line is longer, abbreviate to the most recognizable short form. NEVER exceed the limit.
 - shoutAtSea: ALL CAPS when canon demands it; still ≤ ${MAX_PHRASE_LENGTH} characters.`;
 
@@ -54,7 +51,7 @@ const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or ge
 - Do not add trailing periods or commas unless that punctuation is part of a famous canon line.
 - If the source is obscure, use Extra notes to lock canon; never invent an unrelated franchise or OC voice.`;
 
-const INTERACTION_TOPIC_RULES = `INTERACTION TOPICS (Living the Dream):
+const INTERACTION_TOPIC_RULES = `INTERACTION TOPICS:
 - Each topic value MUST be an object: { "text": "...", "kind": "person"|"thing"|"activity"|"other" }
 - Pick the kind that matches the text shape below; text and kind MUST stay consistent.
 - Keep text short (a few words).
@@ -66,8 +63,8 @@ kind "thing" — a concrete object or item:
 
 kind "activity" — something you do:
 - text MUST be a single verb OR a short verb phrase (gerund or infinitive-style fragment).
-- Good: "dancing", "killing", "fucking", "taking the dog out", "passing time", "cooking", "sleeping"
-- Bad: "video games", "a walk" (use kind "thing" → "a walk" or kind "other" → "video games").
+- Good: "gaming", "dancing", "killing", "fucking", "taking the dog out", "passing time", "cooking", "sleeping"
+- Bad: "video games", "a song" (use kind "thing" → "a song" or kind "other" → "video games").
 
 kind "person" — gossip about someone else:
 - text MUST be ONLY a character name — no articles, titles, or extra words.
@@ -77,7 +74,7 @@ kind "person" — gossip about someone else:
 
 kind "other" — any other simple subject:
 - text is a short plain topic label (concept or theme), usually WITHOUT "a/an".
-- Good: "technology", "science", "sex", "the end of the world", "magic", "politics", "childhood"
+- Good: "technology", "science", "sex", "the end of the world", "magic", "politics", "childhood", "the island's future", "the island's past", "the island's residents", 
 - Bad: "an apple" (use kind "thing"), "dancing" (use kind "activity"), "Mario" (use kind "person").`;
 
 const LTD_GIFTS_RULES = formatAiGiftsRulesForPrompt();
@@ -97,7 +94,8 @@ function canonNicknameRules(speakerName: string): string {
 - Nicknames "${speakerName}" uses must fit how that character addresses people in source canon (honorifics, insults, pet names, surnames only, etc.).
 - Relationship-aware when addressing named cast members — use each target's source/role from the cast list.
 - FORBIDDEN generic filler nicknames unless that exact word is canon for this character: Pal, Buddy, Friend, Man, Dude, Bro, Chief, Sport, Kid, Hey, Mate, Homie.
-- Each target nickname must differ from nicknameDefault and reflect that specific relationship.`;
+- Each target nickname must differ from nicknameDefault and reflect that specific relationship.
+- Character names should be only ${MAX_SHORT_TEXT_LENGTH} characters long. If the nickname is too long, abbreviate it to the most recognizable short form if it still makes sense.`;
 }
 
 function samplePhrases(char: Character, limit = 2): Record<string, string[]> {
@@ -191,8 +189,8 @@ Return ONLY valid JSON:
 {
   "phrases": {
     "catchphrases": ["canon line here"],
-    "startingSentence": ["So,"],
-    "endingSentence": ["...yeah"],
+    "startingSentence": ["canon starting line here,"],
+    "endingSentence": ["canon ending line here"],
     "beforeEating": ["canon line here"],
     "shoutAtSea": ["canon line here"],
     "whenHappy": ["canon line here"],

@@ -6,7 +6,8 @@ import { fileToAvatarDataUrl } from '../lib/avatar';
 import { CharacterAvatar } from './CharacterAvatar';
 import { PhraseEditor } from './PhraseSection';
 import { NicknamePanel } from './NicknamePanel';
-import { SocialRewardsPanel } from './SocialRewardsPanel';
+import { GiftsPanel } from './GiftsPanel';
+import { ConversationTopicsPanel } from './ConversationTopicsPanel';
 
 interface CharacterEditorProps {
   character: Character;
@@ -31,28 +32,22 @@ interface CharacterEditorProps {
   onAddIncoming: (speakerId: string, value?: string) => void;
   onRemoveIncoming: (speakerId: string, index: number) => void;
   onGeneratePhrase: (type: PhraseType) => void;
+  onRegenerateAllPhrases: () => void;
   onGenerateDefaultNickname: () => void;
-  onGenerateMissingNicknames: () => void;
-  onRegenerateAll?: () => void;
+  onRegenerateAllNicknames: () => void;
   onOpenCharacter: (id: string) => void;
   nicknameFocusCharacterId?: string | null;
   communityPhrasesEnabled?: boolean;
   communityNicknamesEnabled?: boolean;
-  islandersNickOpen: boolean;
-  onIslandersNickOpenChange: (open: boolean) => void;
-  
-  // Level up rewards & topics props
-  socialRewardsOpen: boolean;
-  onSocialRewardsOpenChange: (open: boolean) => void;
   onUpdateLevelUpRewards: (rewards: LevelUpRewards) => void;
   onUpdateInteractionTopic: (
     targetId: string,
     text: string,
     kind: InteractionTopicKind,
   ) => void;
-  onGenerateLevelUpRewards: () => Promise<void>;
+  onRegenerateAllGifts: () => Promise<void>;
+  onRegenerateAllTopics: () => Promise<void>;
   onGenerateInteractionTopic: (targetId: string) => Promise<void>;
-  onGenerateAllInteractionTopics: () => Promise<void>;
 }
 
 export function CharacterEditor({
@@ -78,22 +73,18 @@ export function CharacterEditor({
   onAddIncoming,
   onRemoveIncoming,
   onGeneratePhrase,
+  onRegenerateAllPhrases,
   onGenerateDefaultNickname,
-  onGenerateMissingNicknames,
-  onRegenerateAll,
+  onRegenerateAllNicknames,
   onOpenCharacter,
   nicknameFocusCharacterId,
-  islandersNickOpen,
-  onIslandersNickOpenChange,
   communityPhrasesEnabled,
   communityNicknamesEnabled,
-  socialRewardsOpen,
-  onSocialRewardsOpenChange,
   onUpdateLevelUpRewards,
   onUpdateInteractionTopic,
-  onGenerateLevelUpRewards,
+  onRegenerateAllGifts,
+  onRegenerateAllTopics,
   onGenerateInteractionTopic,
-  onGenerateAllInteractionTopics,
 }: CharacterEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [extraOpen, setExtraOpen] = useState(() =>
@@ -177,18 +168,6 @@ export function CharacterEditor({
           </div>
         </div>
         <div className="editor-header-actions">
-          {hasApiKey && onRegenerateAll && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={generatingKey === 'regen-char'}
-              onClick={onRegenerateAll}
-            >
-              {generatingKey === 'regen-char'
-                ? 'Regenerating…'
-                : '✨ Regenerate all'}
-            </button>
-          )}
           {character.avatar && (
             <button
               type="button"
@@ -213,17 +192,21 @@ export function CharacterEditor({
         hasApiKey={hasApiKey}
         generatingKey={generatingKey}
         onGeneratePhrase={onGeneratePhrase}
+        onRegenerateAllPhrases={onRegenerateAllPhrases}
       />
-      <SocialRewardsPanel
+      <GiftsPanel
+        subject={character}
+        onUpdateLevelUpRewards={onUpdateLevelUpRewards}
+        onRegenerateAll={onRegenerateAllGifts}
+        generatingKey={generatingKey}
+        hasApiKey={hasApiKey}
+      />
+      <ConversationTopicsPanel
         subject={character}
         allCharacters={allCharacters}
-        isOpen={socialRewardsOpen}
-        onIsOpenChange={onSocialRewardsOpenChange}
-        onUpdateLevelUpRewards={onUpdateLevelUpRewards}
         onUpdateInteractionTopic={onUpdateInteractionTopic}
-        onGenerateLevelUpRewards={onGenerateLevelUpRewards}
-        onGenerateInteractionTopic={onGenerateInteractionTopic}
-        onGenerateAllInteractionTopics={onGenerateAllInteractionTopics}
+        onRegenerateAll={onRegenerateAllTopics}
+        onGenerateOne={onGenerateInteractionTopic}
         generatingKey={generatingKey}
         hasApiKey={hasApiKey}
       />
@@ -231,8 +214,6 @@ export function CharacterEditor({
         subject={character}
         allCharacters={allCharacters}
         focusCharacterId={nicknameFocusCharacterId}
-        islandersOpen={islandersNickOpen}
-        onIslandersOpenChange={onIslandersNickOpenChange}
         onOpenCharacter={onOpenCharacter}
         onUpdateDefaultAt={onUpdateNicknameDefaultAt}
         onAddDefault={() => onAddNicknameDefault()}
@@ -247,10 +228,9 @@ export function CharacterEditor({
         communityNicknamesEnabled={communityNicknamesEnabled}
         generatingKey={generatingKey}
         onGenerateDefault={onGenerateDefaultNickname}
-        onGenerateMissing={onGenerateMissingNicknames}
+        onRegenerateAll={onRegenerateAllNicknames}
         onAddDefaultNickname={(value) => onAddNicknameDefault(value)}
       />
     </main>
   );
 }
-

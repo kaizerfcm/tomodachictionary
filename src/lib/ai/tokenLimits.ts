@@ -1,6 +1,8 @@
-/** Output token caps per operation (input is trimmed separately in prompts). */
+  /** Output token caps per operation (input is trimmed separately in prompts). */
 export const AI_TOKENS = {
   singleLine: 256,
+  /** Prezzies + all quirk subtypes in one JSON object. */
+  gifts: 2048,
   /** Per chunk when Fill missing is split (many islanders). */
   missingNicknames: 4096,
   /** Initial canon phrases for a new character (one line per type). */

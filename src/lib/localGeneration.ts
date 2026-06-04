@@ -4,9 +4,10 @@ import type { MissingNicknamePairs } from './missingNicknames';
 import type { GeneratedMissingNicknames } from './gemini/types';
 import { clampOutgoingNickname, clampPhraseForType, isShortPhraseType } from './textLimits';
 import {
-  GIFT_FIELD_META,
-  normalizeGifts,
-  type GiftFieldKey,
+  LTD_PREZZIES,
+  parseGeneratedLevelUpRewards,
+  QUIRK_SUBTYPE_KEYS,
+  QUIRK_SUBTYPE_META,
 } from './livingTheDreamGifts';
 
 const PHRASE_POOLS: Record<PhraseType, string[]> = {
@@ -196,11 +197,17 @@ export function generateLocalIncomingNickname(
 }
 
 export function generateLocalLevelUpRewards(): LevelUpRewards {
-  const raw: Partial<LevelUpRewards> = {};
-  for (const key of Object.keys(GIFT_FIELD_META) as GiftFieldKey[]) {
-    raw[key] = pickFromCatalog(GIFT_FIELD_META[key].options);
+  const prezzieCount = 2 + Math.floor(Math.random() * 2);
+  const goods: string[] = [];
+  for (let i = 0; i < prezzieCount; i += 1) {
+    goods.push(pickFromCatalog(LTD_PREZZIES));
   }
-  return normalizeGifts(raw);
+  const quirks: Partial<Record<(typeof QUIRK_SUBTYPE_KEYS)[number], string>> =
+    {};
+  for (const key of QUIRK_SUBTYPE_KEYS) {
+    quirks[key] = pickFromCatalog(QUIRK_SUBTYPE_META[key].options);
+  }
+  return parseGeneratedLevelUpRewards({ goods, quirks });
 }
 
 const TOPIC_KINDS: InteractionTopicKind[] = [

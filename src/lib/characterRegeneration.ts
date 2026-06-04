@@ -156,10 +156,7 @@ export function buildRegeneratedCharacterContent(
   };
   if (choices.levelUpRewards === 'new' && generation.levelUpRewards) {
     levelUpRewards = {
-      song: generation.levelUpRewards.song || '',
-      interior: generation.levelUpRewards.interior || '',
-      clothing: generation.levelUpRewards.clothing || '',
-      hat: generation.levelUpRewards.hat || '',
+      ...levelUpRewards,
       goods: generation.levelUpRewards.goods || '',
       quirks: generation.levelUpRewards.quirks || '',
     };

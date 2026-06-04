@@ -8,7 +8,7 @@ import {
 import type { MissingNicknamePairs } from '../missingNicknames';
 import { getEffectiveNickname } from '../nicknames';
 import { isShortPhraseType } from '../textLimits';
-import { formatGiftCatalogForPrompt } from '../livingTheDreamGifts';
+import { formatAiGiftsRulesForPrompt } from '../livingTheDreamGifts';
 import { serializeIslandJsonCompact } from '../islandJson';
 
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
@@ -80,9 +80,7 @@ kind "other" — any other simple subject:
 - Good: "technology", "science", "sex", "the end of the world", "magic", "politics", "childhood"
 - Bad: "an apple" (use kind "thing"), "dancing" (use kind "activity"), "Mario" (use kind "person").`;
 
-const LTD_GIFTS_RULES = `LEVEL-UP GIFTS (Tomodachi Life: Living the Dream — pick EXACT catalog names):
-Suggest exactly ONE value per JSON key below. Each value MUST be copied exactly from the allowed list for that key (same spelling and punctuation).
-${formatGiftCatalogForPrompt()}`;
+const LTD_GIFTS_RULES = formatAiGiftsRulesForPrompt();
 
 const JSON_ARRAY_RULES = `- Each value MUST be a JSON array containing exactly ${AI_INITIAL_BATCH_SIZE} distinct string options.
 - startingSentence / endingSentence: tiny opener/closer fragments only from canon.`;
@@ -204,12 +202,17 @@ Return ONLY valid JSON:
     "greeting": ["canon line here"]
   },
   "levelUpRewards": {
-    "song": "song description",
-    "interior": "interior description",
-    "clothing": "clothing description",
-    "hat": "hat description",
-    "goods": "goods description",
-    "quirks": "quirk description"
+    "goods": ["Guitar", "Camera", "Toy Sword"],
+    "quirks": {
+      "walking": "Walks Cutely",
+      "standing": "Stands Proudly",
+      "greeting": "Greets Shyly",
+      "face": "Smiley",
+      "eating": "Eats Quickly",
+      "anger": "Smiles when Angry",
+      "voice": "Quiet Voice",
+      "lifestyle": "Night Owl"
+    }
   }
 }`;
 }
@@ -393,12 +396,17 @@ ${TOMODACHI_LINGO_RULES}
 
 Return ONLY valid JSON:
 {
-  "song": "expression from list",
-  "interior": "interior set from list",
-  "clothing": "clothing gift from list",
-  "hat": "pocket money or gadget from list",
-  "goods": "prezzie from list",
-  "quirks": "little quirk from list"
+  "goods": ["Guitar", "Camera"],
+  "quirks": {
+    "walking": "Walks Cutely",
+    "standing": "Stands Proudly",
+    "greeting": "Greets Shyly",
+    "face": "Smiley",
+    "eating": "Eats Quickly",
+    "anger": "Smiles when Angry",
+    "voice": "Quiet Voice",
+    "lifestyle": "Night Owl"
+  }
 }`;
 }
 
@@ -489,7 +497,7 @@ TASK:
 - phrases: arrays of strings per key (${phraseKeys}); up to 3 lines per type, canon-accurate voice.
 - nicknames: keys are TARGET character ids from the cast list above; values are string arrays.
 - interactionTopics: keys are TARGET character ids; values are { "text", "kind" } objects.
-- levelUpRewards: use exact Living the Dream catalog names (song=Expression, hat=Pocket money/gadget, goods=Prezzie, quirks=Little quirk).
+- levelUpRewards: ONLY goods (2–4 Prezzies as array) and quirks (one Little Quirk per subtype key). Do not include song, interior, clothing, or hat.
 - This is a standalone request — no conversation history. Return ONLY the full JSON object, no markdown.
 
 Return ONLY valid JSON with the same top-level shape:

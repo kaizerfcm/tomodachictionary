@@ -14,7 +14,7 @@ import {
   chunkMissingNicknamePairs,
   type MissingNicknamePairs,
 } from '../missingNicknames';
-import { normalizeGifts } from '../livingTheDreamGifts';
+import { parseGeneratedLevelUpRewards } from '../livingTheDreamGifts';
 import { parseInteractionTopicFromAi } from '../interactionTopics';
 import {
   clampOutgoingNickname,
@@ -44,14 +44,7 @@ function isGenericNickname(value: string): boolean {
 function parseLevelUpRewards(
   raw: Record<string, unknown> | undefined,
 ): LevelUpRewards {
-  return normalizeGifts({
-    song: String(raw?.song ?? raw?.expression ?? '').trim(),
-    interior: String(raw?.interior ?? '').trim(),
-    clothing: String(raw?.clothing ?? '').trim(),
-    hat: String(raw?.hat ?? raw?.pocketMoney ?? '').trim(),
-    goods: String(raw?.goods ?? raw?.prezzie ?? '').trim(),
-    quirks: String(raw?.quirks ?? raw?.quirk ?? '').trim(),
-  });
+  return parseGeneratedLevelUpRewards(raw);
 }
 
 function parseInteractionTopicsRecord(
@@ -429,7 +422,7 @@ export async function generateLevelUpRewards(
   const prompt = buildLevelUpRewardsPrompt(character);
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
-    maxOutputTokens: AI_TOKENS.singleLine,
+    maxOutputTokens: AI_TOKENS.gifts,
     operation: 'level-up-rewards',
   });
   return parseLevelUpRewards(raw);

@@ -60,12 +60,12 @@ describe('characterRegeneration', () => {
     const target = createCharacter('Ren', 'sub-2');
     const generation = emptyGeneration();
     generation.levelUpRewards = {
-      song: 'Happy',
-      interior: 'Teahouse Set',
-      clothing: 'Casual outfit',
-      hat: '$10',
-      goods: 'Guitar',
-      quirks: 'Smiley',
+      song: '',
+      interior: '',
+      clothing: '',
+      hat: '',
+      goods: 'Guitar | Camera',
+      quirks: 'Walks Cutely | Greets Shyly | Smiley',
     };
 
     const choices = allNewRegenerateChoices(subject, [subject, target], generation);

@@ -3,6 +3,7 @@ import type { Character, InteractionTopicKind } from '../types';
 import { CharacterAvatar } from './CharacterAvatar';
 import { AiSparkButton } from './AiSparkButton';
 import { EditorSectionHeader } from './EditorSectionHeader';
+import { IconButton } from './IconButton';
 import { InteractionTopicEditor } from './InteractionTopicEditor';
 
 interface ConversationTopicsPanelProps {
@@ -40,14 +41,12 @@ export function ConversationTopicsPanel({
   return (
     <section className="topics-panel editor-section">
       <EditorSectionHeader title="Conversation Topics">
-        <button
-          type="button"
-          className={`btn btn-ghost btn-sm${filterOpen ? ' btn-active' : ''}`}
+        <IconButton
+          icon="filter"
+          label={filterOpen ? 'Hide filter' : 'Show filter'}
+          active={filterOpen}
           onClick={() => setFilterOpen((open) => !open)}
-          aria-pressed={filterOpen}
-        >
-          {filterOpen ? 'Hide filter' : 'Show filter'}
-        </button>
+        />
         {hasApiKey && otherCharacters.length > 0 && (
           <AiSparkButton
             onClick={onRegenerateAll}
@@ -86,6 +85,14 @@ export function ConversationTopicsPanel({
                   <div className="topic-islander">
                     <CharacterAvatar character={char} size="sm" />
                     <span className="topic-islander-name">{char.name}</span>
+                    {hasApiKey && (
+                      <AiSparkButton
+                        onClick={() => onGenerateOne(char.id)}
+                        disabled={isGeneratingThis || !hasApiKey}
+                        busy={isGeneratingThis}
+                        title={`Suggest topic for ${char.name}`}
+                      />
+                    )}
                   </div>
                   <div className="topic-input-container">
                     <InteractionTopicEditor
@@ -94,13 +101,6 @@ export function ConversationTopicsPanel({
                         onUpdateInteractionTopic(char.id, text, kind)
                       }
                     />
-                    {hasApiKey && (
-                      <AiSparkButton
-                        onClick={() => onGenerateOne(char.id)}
-                        disabled={isGeneratingThis || !hasApiKey}
-                        busy={isGeneratingThis}
-                      />
-                    )}
                   </div>
                 </div>
               );

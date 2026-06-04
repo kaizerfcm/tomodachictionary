@@ -6,6 +6,7 @@ import { AiSparkButton } from './AiSparkButton';
 import { CommunityNicknamesButton } from './CommunityNicknamesButton';
 import { CharacterAvatar } from './CharacterAvatar';
 import { EditorSectionHeader } from './EditorSectionHeader';
+import { IconButton } from './IconButton';
 
 const MAX_VISIBLE = 24;
 
@@ -232,14 +233,12 @@ export function NicknamePanel({
   return (
     <section className="nicknames-panel editor-section">
       <EditorSectionHeader title="Nicknames">
-        <button
-          type="button"
-          className={`btn btn-ghost btn-sm${filterOpen ? ' btn-active' : ''}`}
+        <IconButton
+          icon="filter"
+          label={filterOpen ? 'Hide filter' : 'Show filter'}
+          active={filterOpen}
           onClick={() => setFilterOpen((open) => !open)}
-          aria-pressed={filterOpen}
-        >
-          {filterOpen ? 'Hide filter' : 'Show filter'}
-        </button>
+        />
         {hasApiKey && onRegenerateAll && others.length > 0 && (
           <AiSparkButton
             busy={generatingKey === 'nicknames:all'}

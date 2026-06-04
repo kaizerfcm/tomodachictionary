@@ -39,9 +39,9 @@ export function PhraseSection({
   const shortPhrase = isShortPhraseType(phraseType);
 
   return (
-    <details className="phrase-section" open={phrases.length > 0}>
-      <summary className="phrase-section-summary">
-        <span>{label}</span>
+    <div className="phrase-section">
+      <div className="phrase-section-head">
+        <span className="phrase-section-label">{label}</span>
         {showActions && (
           <span className="phrase-section-actions">
             {communityEnabled && onAddText && (
@@ -68,7 +68,7 @@ export function PhraseSection({
             )}
           </span>
         )}
-      </summary>
+      </div>
       <div className="phrase-list">
         {phrases.map((phrase, index) => (
           <div key={index} className="phrase-row">
@@ -100,7 +100,7 @@ export function PhraseSection({
           + Add
         </button>
       </div>
-    </details>
+    </div>
   );
 }
 

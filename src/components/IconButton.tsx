@@ -9,7 +9,8 @@ export type IconName =
   | 'signOut'
   | 'menu'
   | 'panelClose'
-  | 'add';
+  | 'add'
+  | 'filter';
 
 interface IconButtonProps {
   icon: IconName;
@@ -89,6 +90,12 @@ function Icon({ name }: { name: IconName }) {
       return (
         <svg {...common}>
           <path d="M12 5v14M5 12h14" />
+        </svg>
+      );
+    case 'filter':
+      return (
+        <svg {...common}>
+          <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
         </svg>
       );
     default:

@@ -268,10 +268,9 @@ export function NicknamePanel({
       <input
         type="search"
         className="filter-input filter-input-sm nicknames-panel-filter"
-        placeholder="Filter islanders…"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        aria-label="Filter islander nicknames"
+        aria-label="Filter islanders"
       />
 
       <details className="nicknames-collapsible" open={islandersOpen}>

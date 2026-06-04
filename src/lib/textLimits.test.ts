@@ -4,7 +4,9 @@ import {
   clampPhraseForType,
   clampShortText,
   clampStandardPhrase,
+  applyShortTextLimitsToGeneration,
 } from './textLimits';
+import type { FullCharacterGeneration } from './gemini/types';
 
 describe('textLimits', () => {
   it('clamps short text to 13 characters', () => {
@@ -25,5 +27,42 @@ describe('textLimits', () => {
     const long = 'abcdefghijklmnopqrstuvwxyz';
     expect(clampPhraseForType('greeting', long)).toBe('abcdefghijklmnopqrstuvwxy');
     expect(clampStandardPhrase(long)).toBe('abcdefghijklmnopqrstuvwxy');
+  });
+
+  it('preserves levelUpRewards and interactionTopics in generation limits', () => {
+    const generation = {
+      phrases: {
+        catchphrases: ['Hello', '', ''],
+        startingSentence: ['So,', '', ''],
+        endingSentence: ['...', '', ''],
+        beforeEating: ['Yum', '', ''],
+        shoutAtSea: ['HELP', '', ''],
+        whenHappy: ['Yay', '', ''],
+        whenSad: ['Sigh', '', ''],
+        whenAngry: ['Grr', '', ''],
+        whileSleeping: ['Zzz', '', ''],
+        greeting: ['Hi', '', ''],
+      },
+      outgoing: {
+        nicknameDefault: ['pal', '', ''],
+        byTargetName: { Alex: ['buddy', '', ''] },
+      },
+      incoming: { bySpeakerName: {} },
+      levelUpRewards: {
+        song: 'Rock',
+        interior: 'Lab',
+        clothing: 'Jacket',
+        hat: 'Cap',
+        goods: 'Kite',
+        quirks: 'Sleepyhead',
+      },
+      interactionTopics: {
+        'Target Name': { text: 'retro games', kind: 'activity' },
+      },
+    } as FullCharacterGeneration;
+
+    const limited = applyShortTextLimitsToGeneration(generation);
+    expect(limited.levelUpRewards).toEqual(generation.levelUpRewards);
+    expect(limited.interactionTopics).toEqual(generation.interactionTopics);
   });
 });

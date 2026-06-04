@@ -6,5 +6,9 @@ export const AI_TOKENS = {
   /** Initial canon phrases for a new character (one line per type). */
   fullCharacterPhrases: 8192,
   /** Initial outgoing nicknames for a new character. */
-  fullCharacterNicknames: 4096,
+  fullCharacterNicknames: 8192,
+  /** Whole-island batch regeneration (single JSON in/out). */
+  islandBatchBase: 8192,
+  islandBatchPerCharacter: 4096,
+  islandBatchMax: 65536,
 } as const;

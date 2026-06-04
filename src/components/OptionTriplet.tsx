@@ -92,22 +92,22 @@ export function OptionCompare({
           <input
             type="radio"
             name={name}
-            checked={choice === 'current'}
-            onChange={() => onChoice('current')}
+            checked={choice === 'new'}
+            onChange={() => onChoice('new')}
           />
           <span>
-            <strong>Current</strong> {currentText}
+            <strong>New</strong> {newText}
           </span>
         </label>
         <label className="option-choice">
           <input
             type="radio"
             name={name}
-            checked={choice === 'new'}
-            onChange={() => onChoice('new')}
+            checked={choice === 'current'}
+            onChange={() => onChoice('current')}
           />
           <span>
-            <strong>New</strong> {newText}
+            <strong>Current</strong> {currentText}
           </span>
         </label>
       </div>

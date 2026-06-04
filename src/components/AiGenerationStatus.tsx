@@ -5,9 +5,15 @@ export type AiNotice = {
   message: string;
 };
 
+export type IslandRegenBanner = {
+  label: string;
+  onShow: () => void;
+};
+
 interface AiGenerationStatusProps {
   busy: boolean;
   notice: AiNotice | null;
+  islandRegenBanner?: IslandRegenBanner | null;
   onDismissNotice: () => void;
 }
 
@@ -16,6 +22,7 @@ const NOTICE_MS = { success: 4000, error: 8000 };
 export function AiGenerationStatus({
   busy,
   notice,
+  islandRegenBanner,
   onDismissNotice,
 }: AiGenerationStatusProps) {
   useEffect(() => {
@@ -25,10 +32,22 @@ export function AiGenerationStatus({
     return () => window.clearTimeout(t);
   }, [notice, onDismissNotice]);
 
-  if (!busy && !notice) return null;
+  if (!busy && !notice && !islandRegenBanner) return null;
 
   return (
     <div className="ai-gen-status" aria-live="polite">
+      {islandRegenBanner && (
+        <div className="ai-gen-toast ai-gen-toast-info" role="status">
+          <p className="ai-gen-toast-message">{islandRegenBanner.label}</p>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={islandRegenBanner.onShow}
+          >
+            Show progress
+          </button>
+        </div>
+      )}
       {notice && (
         <div
           className={`ai-gen-toast ai-gen-toast-${notice.kind}`}

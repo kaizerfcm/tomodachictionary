@@ -1,4 +1,4 @@
-import type { PhraseType } from '../../types';
+import type { PhraseType, LevelUpRewards, InteractionTopic } from '../../types';
 
 export type Triplet = [string, string, string];
 
@@ -18,6 +18,8 @@ export interface FullCharacterGeneration {
   phrases: GeneratedPhrases;
   outgoing: GeneratedOutgoingNicknames;
   incoming: GeneratedIncomingNicknames;
+  levelUpRewards?: LevelUpRewards;
+  interactionTopics?: Record<string, InteractionTopic | string>;
 }
 
 export interface NicknameRegeneration {

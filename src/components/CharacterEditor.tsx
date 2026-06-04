@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Character } from '../types';
+import type { Character, InteractionTopicKind, LevelUpRewards } from '../types';
 import type { PhraseType } from '../types';
 import { MAX_CHARACTER_EXTRA_LENGTH } from '../constants';
 import { fileToAvatarDataUrl } from '../lib/avatar';
 import { CharacterAvatar } from './CharacterAvatar';
 import { PhraseEditor } from './PhraseSection';
 import { NicknamePanel } from './NicknamePanel';
+import { SocialRewardsPanel } from './SocialRewardsPanel';
 
 interface CharacterEditorProps {
   character: Character;
@@ -39,6 +40,19 @@ interface CharacterEditorProps {
   communityNicknamesEnabled?: boolean;
   islandersNickOpen: boolean;
   onIslandersNickOpenChange: (open: boolean) => void;
+  
+  // Level up rewards & topics props
+  socialRewardsOpen: boolean;
+  onSocialRewardsOpenChange: (open: boolean) => void;
+  onUpdateLevelUpRewards: (rewards: LevelUpRewards) => void;
+  onUpdateInteractionTopic: (
+    targetId: string,
+    text: string,
+    kind: InteractionTopicKind,
+  ) => void;
+  onGenerateLevelUpRewards: () => Promise<void>;
+  onGenerateInteractionTopic: (targetId: string) => Promise<void>;
+  onGenerateAllInteractionTopics: () => Promise<void>;
 }
 
 export function CharacterEditor({
@@ -73,6 +87,13 @@ export function CharacterEditor({
   onIslandersNickOpenChange,
   communityPhrasesEnabled,
   communityNicknamesEnabled,
+  socialRewardsOpen,
+  onSocialRewardsOpenChange,
+  onUpdateLevelUpRewards,
+  onUpdateInteractionTopic,
+  onGenerateLevelUpRewards,
+  onGenerateInteractionTopic,
+  onGenerateAllInteractionTopics,
 }: CharacterEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [extraOpen, setExtraOpen] = useState(() =>
@@ -125,7 +146,7 @@ export function CharacterEditor({
               className="sr-only"
               onChange={(e) => handleAvatarFile(e.target.files?.[0])}
             />
-            <span className="avatar-upload-hint">Change photo</span>
+            <span className="avatar-upload-hint">Photo</span>
           </label>
           <div className="editor-identity-fields">
             <input
@@ -148,7 +169,7 @@ export function CharacterEditor({
                 value={character.extra ?? ''}
                 maxLength={MAX_CHARACTER_EXTRA_LENGTH}
                 rows={2}
-                placeholder="Source work, role, tone, iconic scenes to reference"
+                aria-label="Extra"
                 onChange={(e) => onExtraChange(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
               />
@@ -182,12 +203,6 @@ export function CharacterEditor({
           </button>
         </div>
       </header>
-      <p className="gen-inline-hint">
-        👥 Community suggestions when signed in (free). ✨ Canon AI uses Gemini and
-        pulls lines from source material — fill Extra with source work, role,
-        tone, and iconic scenes for best results.
-        {!hasApiKey && ' Add a Gemini key in Configuration to enable ✨.'}
-      </p>
       <PhraseEditor
         characterName={character.name}
         communityEnabled={communityPhrasesEnabled}
@@ -198,6 +213,19 @@ export function CharacterEditor({
         hasApiKey={hasApiKey}
         generatingKey={generatingKey}
         onGeneratePhrase={onGeneratePhrase}
+      />
+      <SocialRewardsPanel
+        subject={character}
+        allCharacters={allCharacters}
+        isOpen={socialRewardsOpen}
+        onIsOpenChange={onSocialRewardsOpenChange}
+        onUpdateLevelUpRewards={onUpdateLevelUpRewards}
+        onUpdateInteractionTopic={onUpdateInteractionTopic}
+        onGenerateLevelUpRewards={onGenerateLevelUpRewards}
+        onGenerateInteractionTopic={onGenerateInteractionTopic}
+        onGenerateAllInteractionTopics={onGenerateAllInteractionTopics}
+        generatingKey={generatingKey}
+        hasApiKey={hasApiKey}
       />
       <NicknamePanel
         subject={character}
@@ -225,3 +253,4 @@ export function CharacterEditor({
     </main>
   );
 }
+

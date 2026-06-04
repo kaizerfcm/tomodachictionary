@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   getGridSort,
   getIslandersNickOpen,
@@ -9,18 +9,13 @@ import {
 import { sortCharacters } from './lib/sortCharacters';
 import { useDictionary } from './hooks/useDictionary';
 import { useSettings } from './hooks/useSettings';
-import { useUserProfile } from './hooks/useUserProfile';
 import { useTheme } from './hooks/useTheme';
 import { Sidebar } from './components/Sidebar';
 import { CharacterEditor } from './components/CharacterEditor';
 import { CharacterGrid } from './components/CharacterGrid';
 import { ConfigPage } from './components/ConfigPage';
 import { TosPage } from './components/TosPage';
-import { RemoveAdsPage } from './components/RemoveAdsPage';
-import { AdBanner } from './components/AdBanner';
-import { useAdMobBanner } from './hooks/useAdMobBanner';
-import { shouldUseNativeAds } from './lib/admobConfig';
-import { SyncBanner } from './components/SyncBanner';
+import { ImportIslandModal } from './components/ImportIslandModal';
 import {
   AiGenerationStatus,
   type AiNotice,
@@ -28,56 +23,59 @@ import {
 import { NewCharacterModal } from './components/NewCharacterModal';
 import { NewCharacterReviewModal } from './components/NewCharacterReviewModal';
 import { CharacterRegenerateReviewModal } from './components/CharacterRegenerateReviewModal';
+import {
+  IslandRegenerateModal,
+  type IslandRegenProgress,
+} from './components/IslandRegenerateModal';
+import {
+  IslandRegenerateOptionsModal,
+  type IslandRegenMode,
+} from './components/IslandRegenerateOptionsModal';
+import { generateIslandBatchRegeneration } from './lib/ai/islandBatchRegen';
 import { AiError } from './lib/ai/errors';
 import {
   generateFullCharacter,
   generateMissingIslandNicknamesBatched,
   generateOneNickname,
   generateOnePhrase,
+  generateLevelUpRewards,
+  generateInteractionTopic,
+  generateMissingInteractionTopics,
 } from './lib/ai/generate';
 import {
   buildOneDefaultNicknamePrompt,
   buildOnePhrasePrompt,
 } from './lib/gemini/prompts';
 import { generateQuickFillCharacter } from './lib/localGeneration';
-import { canUseCommunityNicknames } from './lib/communityNicknames';
+import {
+  allNewRegenerateChoices,
+  buildRegeneratedCharacterContent,
+} from './lib/characterRegeneration';
 import {
   countMissingNicknamePairs,
   getMissingNicknamePairs,
 } from './lib/missingNicknames';
 import type { FullCharacterGeneration } from './lib/gemini/types';
 import type { Character, PhraseType } from './types';
-import type { AuthMode } from './components/AuthScreen';
-import { formatAccountLabel } from './lib/authEmail';
-import { getPaymentConfig } from './lib/paymentConfig';
 import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
-import { canUseCommunityPhrases } from './lib/communityPhrases';
 import { aiSuccessMessage } from './lib/aiGenerationMessages';
 
-type View = 'main' | 'config' | 'tos' | 'removeAds';
+type View = 'main' | 'config' | 'tos';
 
-interface AppMainProps {
-  storageMode: 'local' | 'cloud';
-  userId?: string | null;
-  userEmail?: string;
-  syncAvailable: boolean;
-  onSignOut: () => void;
-  onOpenAuth: (mode: AuthMode) => void;
+type AiResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+/** Pause between sequential island regen API calls to reduce rate-limit errors. */
+const ISLAND_REGEN_DELAY_MS = 1500;
+const ISLAND_REGEN_BATCH_FAILURE_ID = '__batch__';
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function AppMain({
-  storageMode,
-  userId,
-  userEmail,
-  syncAvailable,
-  onSignOut,
-  onOpenAuth,
-}: AppMainProps) {
+export function AppMain() {
   const { preference: themePreference, setPreference: setThemePreference } =
     useTheme();
-  const { adsRemoved, setAdsRemoved, refreshProfile, confirmPlayPurchase } =
-    useUserProfile(userId);
   const [view, setView] = useState<View>('main');
   const [showNewCharModal, setShowNewCharModal] = useState(false);
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
@@ -89,8 +87,11 @@ export function AppMain({
   const [nicknameFilterFromId, setNicknameFilterFromId] = useState<string | null>(
     null,
   );
-  const prevSelectedId = useRef<string | null | undefined>(undefined);
-  const prevView = useRef<View | undefined>(undefined);
+  const [socialRewardsOpen, setSocialRewardsOpen] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{
+    data: import('./types').DictionaryData;
+    suggestedName: string;
+  } | null>(null);
 
   const [newCharReview, setNewCharReview] = useState<{
     name: string;
@@ -104,6 +105,13 @@ export function AppMain({
     generation: FullCharacterGeneration;
   } | null>(null);
   const [regenReviewKey, setRegenReviewKey] = useState(0);
+  const [islandRegen, setIslandRegen] = useState<IslandRegenProgress | null>(
+    null,
+  );
+  const [islandRegenModalOpen, setIslandRegenModalOpen] = useState(false);
+  const [islandRegenOptionsOpen, setIslandRegenOptionsOpen] = useState(false);
+  const islandRegenAbortRef = useRef<AbortController | null>(null);
+  const islandRegenRunIdRef = useRef(0);
 
   const {
     characters,
@@ -112,11 +120,17 @@ export function AppMain({
     setSelectedId,
     loading,
     error,
-    syncError,
-    syncToCloud,
+    saveError,
+    islands,
+    activeIslandId,
+    activeIslandName,
+    switchIsland,
+    createIsland,
+    renameActiveIsland,
+    replaceActiveIsland,
+    importAsNewIsland,
     addCharacter,
     addCharacterFull,
-    applyCharacters,
     applyRegeneratedContent,
     removeCharacter,
     updateCharacterName,
@@ -133,51 +147,17 @@ export function AppMain({
     updateNicknameDefaultAt,
     addNicknameDefault,
     removeNicknameDefault,
+    updateLevelUpRewards,
+    updateInteractionTopic,
     clearAllData,
-  } = useDictionary({ storageMode, userId });
+  } = useDictionary();
 
-  useEffect(() => {
-    setRegenReview((prev) =>
-      prev && selectedId !== prev.snapshot.id ? null : prev,
-    );
-  }, [selectedId]);
-
-  const accountEmail = userEmail ? formatAccountLabel(userEmail) : undefined;
-  const payment = getPaymentConfig();
-  const signedIn = storageMode === 'cloud' && Boolean(userId);
   const { apiKey, setApiKey, hasApiKey } = useSettings();
-  const communityPhrasesEnabled = canUseCommunityPhrases(signedIn);
-  const communityNicknamesEnabled = canUseCommunityNicknames(signedIn);
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
     [characters],
   );
-
-  const showGrid = !selected;
-  const showAdBanner = showGrid && !adsRemoved;
-
-  useAdMobBanner(showAdBanner);
-
-  useEffect(() => {
-    if (loading) return;
-    if (
-      prevSelectedId.current !== undefined &&
-      prevSelectedId.current !== selectedId
-    ) {
-      void syncToCloud();
-    }
-    if (prevView.current !== undefined && prevView.current !== view) {
-      void syncToCloud();
-    }
-    prevSelectedId.current = selectedId;
-    prevView.current = view;
-  }, [selectedId, view, loading, syncToCloud]);
-
-  const handleSignOut = useCallback(async () => {
-    await syncToCloud();
-    await onSignOut();
-  }, [onSignOut, syncToCloud]);
 
   const handleSelectCharacter = useCallback(
     (id: string | null) => {
@@ -195,28 +175,9 @@ export function AppMain({
     [selectedId, setSelectedId],
   );
 
-  const openView = useCallback(
-    (next: View) => {
-      setView(next);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!showAdBanner) return;
-    const onVisible = () => {
-      void refreshProfile();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') onVisible();
-    };
-    window.addEventListener('focus', onVisible);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.removeEventListener('focus', onVisible);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [showAdBanner, refreshProfile]);
+  const openView = useCallback((next: View) => {
+    setView(next);
+  }, []);
 
   const handleGridSortChange = (sort: GridSort) => {
     setGridSortState(sort);
@@ -236,61 +197,72 @@ export function AppMain({
     try {
       const text = await file.text();
       const data = parseIslandJson(text);
-      const replace = window.confirm(
-        `Import ${data.characters.length} character(s)? OK replaces your island; Cancel merges by name (keeps existing IDs where names match).`,
-      );
-      if (replace) {
-        applyCharacters(data.characters);
-        return;
-      }
-      const byName = new Map(characters.map((c) => [c.name.toLowerCase(), c]));
-      const merged = [...characters];
-      for (const imported of data.characters) {
-        const key = imported.name.toLowerCase();
-        const existing = byName.get(key);
-        if (existing) {
-          const idx = merged.findIndex((c) => c.id === existing.id);
-          if (idx >= 0) merged[idx] = { ...imported, id: existing.id };
-        } else {
-          merged.push(imported);
-        }
-      }
-      applyCharacters(merged);
+      const baseName = file.name.replace(/\.json$/i, '') || 'Imported island';
+      setPendingImport({ data, suggestedName: baseName });
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Import failed');
     }
   };
 
-  const handleRemoveFree = async () => {
-    await setAdsRemoved(true);
-    openView('main');
-  };
-
-  const runAi = useCallback(
-    async <T,>(key: string, fn: () => Promise<T>): Promise<T | null> => {
-      if (!hasApiKey) return null;
+  const executeAi = useCallback(
+    async <T,>(
+      key: string,
+      fn: () => Promise<T>,
+      options?: { quiet?: boolean; signal?: AbortSignal },
+    ): Promise<AiResult<T>> => {
+      if (!hasApiKey) {
+        return { ok: false, error: 'No API key configured' };
+      }
+      if (options?.signal?.aborted) {
+        return { ok: false, error: 'Generation cancelled' };
+      }
       setGeneratingKey(key);
-      setAiNotice(null);
+      if (!options?.quiet) setAiNotice(null);
       try {
-        const result = await fn();
-        const successMsg = aiSuccessMessage(key, result);
-        if (successMsg) setAiNotice({ kind: 'success', message: successMsg });
-        return result;
+        const value = await fn();
+        if (options?.signal?.aborted) {
+          return { ok: false, error: 'Generation cancelled' };
+        }
+        if (!options?.quiet) {
+          const successMsg = aiSuccessMessage(key, value);
+          if (successMsg) setAiNotice({ kind: 'success', message: successMsg });
+        }
+        return { ok: true, value };
       } catch (e) {
+        const cancelled =
+          options?.signal?.aborted ||
+          (e instanceof AiError && e.message === 'Generation cancelled') ||
+          (e instanceof DOMException && e.name === 'AbortError') ||
+          (e instanceof Error && e.name === 'AbortError');
+        if (cancelled) {
+          return { ok: false, error: 'Generation cancelled' };
+        }
         const msg =
           e instanceof AiError
             ? e.message
             : e instanceof Error
               ? e.message
               : 'Generation failed';
-        console.error('[AI]', key, msg, e);
-        setAiNotice({ kind: 'error', message: msg });
-        return null;
+        if (!msg.includes('Unsupported site')) {
+          console.error('[AI]', key, msg, e);
+        } else {
+          console.warn('[AI]', key, msg);
+        }
+        if (!options?.quiet) setAiNotice({ kind: 'error', message: msg });
+        return { ok: false, error: msg };
       } finally {
         setGeneratingKey(null);
       }
     },
     [hasApiKey],
+  );
+
+  const runAi = useCallback(
+    async <T,>(key: string, fn: () => Promise<T>): Promise<T | null> => {
+      const result = await executeAi(key, fn);
+      return result.ok ? result.value : null;
+    },
+    [executeAi],
   );
 
   const handleQuickFill = useCallback(
@@ -352,18 +324,296 @@ export function AppMain({
       generateFullCharacter(apiKey, selected.name, cast, selected.extra),
     );
     if (!generation) return;
-    setRegenReview((prev) => ({
-      snapshot: prev?.snapshot ?? selected,
+    setRegenReview({
+      snapshot: selected,
       generation,
-    }));
+    });
     setRegenReviewKey((k) => k + 1);
   }, [apiKey, characters, hasApiKey, runAi, selected]);
+
+  const runIslandRegeneration = useCallback(
+    async (targets: Character[], mode: IslandRegenMode) => {
+      if (targets.length === 0) return;
+
+      const runId = ++islandRegenRunIdRef.current;
+      const abortController = new AbortController();
+      islandRegenAbortRef.current = abortController;
+      const signal = abortController.signal;
+
+      const isActive = () =>
+        islandRegenRunIdRef.current === runId && !signal.aborted;
+
+      const pushProgress = (next: IslandRegenProgress) => {
+        if (islandRegenRunIdRef.current !== runId) return;
+        setIslandRegen(next);
+      };
+
+      pushProgress({
+        mode,
+        phase: 'running',
+        index: 0,
+        total: targets.length,
+        currentName: targets[0].name,
+        succeeded: [],
+        failed: [],
+      });
+      setIslandRegenModalOpen(true);
+
+      if (mode === 'batch') {
+        pushProgress({
+          mode,
+          phase: 'running',
+          index: 0,
+          total: targets.length,
+          currentName: 'All islanders',
+          succeeded: [],
+          failed: [],
+        });
+
+        const result = await executeAi(
+          'regen-island-batch',
+          () => generateIslandBatchRegeneration(apiKey, targets, { signal }),
+          { quiet: true, signal },
+        );
+
+        if (!isActive()) {
+          pushProgress({
+            mode,
+            phase: 'stopped',
+            index: 0,
+            total: targets.length,
+            currentName: 'All islanders',
+            succeeded: [],
+            failed: [],
+          });
+          return;
+        }
+
+        if (result.ok) {
+          replaceActiveIsland({ version: 1, characters: result.value });
+          pushProgress({
+            mode,
+            phase: 'done',
+            index: targets.length - 1,
+            total: targets.length,
+            currentName: 'All islanders',
+            succeeded: targets.map((c) => c.name),
+            failed: [],
+          });
+          setAiNotice({
+            kind: 'success',
+            message: `Regenerated ${targets.length} islander${targets.length === 1 ? '' : 's'}`,
+          });
+        } else {
+          pushProgress({
+            mode,
+            phase: result.error === 'Generation cancelled' ? 'stopped' : 'done',
+            index: 0,
+            total: targets.length,
+            currentName: 'All islanders',
+            succeeded: [],
+            failed:
+              result.error === 'Generation cancelled'
+                ? []
+                : [
+                    {
+                      characterId: ISLAND_REGEN_BATCH_FAILURE_ID,
+                      characterName: 'All islanders (batch)',
+                      error: result.error,
+                    },
+                  ],
+          });
+        }
+        return;
+      }
+
+      const succeeded: string[] = [];
+      const failed: IslandRegenProgress['failed'] = [];
+
+      for (let i = 0; i < targets.length; i++) {
+        if (!isActive()) {
+          pushProgress({
+            mode,
+            phase: 'stopped',
+            index: i,
+            total: targets.length,
+            currentName: targets[i]?.name ?? '',
+            succeeded: [...succeeded],
+            failed: [...failed],
+          });
+          return;
+        }
+
+        const character = targets[i];
+        pushProgress({
+          mode,
+          phase: 'running',
+          index: i,
+          total: targets.length,
+          currentName: character.name,
+          succeeded: [...succeeded],
+          failed: [...failed],
+        });
+
+        const cast = characters.filter((c) => c.id !== character.id);
+        const result = await executeAi(
+          `regen-island-${character.id}`,
+          () =>
+            generateFullCharacter(
+              apiKey,
+              character.name,
+              cast,
+              character.extra,
+              { signal },
+            ),
+          { quiet: true, signal },
+        );
+
+        if (!isActive()) {
+          pushProgress({
+            mode,
+            phase: 'stopped',
+            index: i,
+            total: targets.length,
+            currentName: character.name,
+            succeeded: [...succeeded],
+            failed: [...failed],
+          });
+          return;
+        }
+
+        if (result.ok) {
+          const choices = allNewRegenerateChoices(
+            character,
+            characters,
+            result.value,
+          );
+          const patch = buildRegeneratedCharacterContent(
+            character,
+            result.value,
+            characters,
+            choices,
+          );
+          applyRegeneratedContent(character.id, patch);
+          succeeded.push(character.name);
+        } else if (result.error !== 'Generation cancelled') {
+          failed.push({
+            characterId: character.id,
+            characterName: character.name,
+            error: result.error,
+          });
+        } else {
+          pushProgress({
+            mode,
+            phase: 'stopped',
+            index: i,
+            total: targets.length,
+            currentName: character.name,
+            succeeded: [...succeeded],
+            failed: [...failed],
+          });
+          return;
+        }
+
+        if (i < targets.length - 1 && isActive()) {
+          await sleep(ISLAND_REGEN_DELAY_MS);
+        }
+      }
+
+      if (!isActive()) return;
+
+      pushProgress({
+        mode,
+        phase: 'done',
+        index: targets.length - 1,
+        total: targets.length,
+        currentName: targets[targets.length - 1]?.name ?? '',
+        succeeded: [...succeeded],
+        failed: [...failed],
+      });
+
+      if (failed.length === 0 && succeeded.length > 0) {
+        setAiNotice({
+          kind: 'success',
+          message: `Regenerated ${succeeded.length} islander${succeeded.length === 1 ? '' : 's'}`,
+        });
+      }
+    },
+    [
+      apiKey,
+      applyRegeneratedContent,
+      characters,
+      executeAi,
+      replaceActiveIsland,
+    ],
+  );
+
+  const handleOpenIslandRegenOptions = useCallback(() => {
+    if (!hasApiKey || characters.length === 0) return;
+    setIslandRegenOptionsOpen(true);
+  }, [characters.length, hasApiKey]);
+
+  const handleStartIslandRegeneration = useCallback(
+    (mode: IslandRegenMode) => {
+      setIslandRegenOptionsOpen(false);
+      void runIslandRegeneration(characters, mode);
+    },
+    [characters, runIslandRegeneration],
+  );
+
+  const handleStopIslandRegeneration = useCallback(() => {
+    islandRegenAbortRef.current?.abort();
+  }, []);
+
+  const handleRetryFailedIslandRegeneration = useCallback(() => {
+    if (!islandRegen?.failed.length) return;
+    if (
+      islandRegen.mode === 'batch' ||
+      islandRegen.failed.some((f) => f.characterId === ISLAND_REGEN_BATCH_FAILURE_ID)
+    ) {
+      void runIslandRegeneration(characters, 'batch');
+      return;
+    }
+    const failedIds = new Set(islandRegen.failed.map((f) => f.characterId));
+    const toRetry = characters.filter((c) => failedIds.has(c.id));
+    void runIslandRegeneration(toRetry, 'sequential');
+  }, [characters, islandRegen, runIslandRegeneration]);
+
+  const handleHideIslandRegenerationModal = useCallback(() => {
+    setIslandRegenModalOpen(false);
+    if (islandRegen?.phase !== 'running') {
+      setIslandRegen(null);
+    }
+  }, [islandRegen?.phase]);
+
+  const islandRegenBanner = useMemo(() => {
+    if (!islandRegen || islandRegenModalOpen) return null;
+    const processed = islandRegen.succeeded.length + islandRegen.failed.length;
+    if (islandRegen.phase === 'running') {
+      return {
+        label: `Island regeneration in progress (${processed}/${islandRegen.total})…`,
+        onShow: () => setIslandRegenModalOpen(true),
+      };
+    }
+    if (islandRegen.failed.length > 0) {
+      return {
+        label: `Island regeneration finished with ${islandRegen.failed.length} failure(s)`,
+        onShow: () => setIslandRegenModalOpen(true),
+      };
+    }
+    return {
+      label: 'Island regeneration complete',
+      onShow: () => setIslandRegenModalOpen(true),
+    };
+  }, [islandRegen, islandRegenModalOpen]);
 
   const handleConfirmRegenerateReview = useCallback(
     (patch: {
       phrases: Character['phrases'];
       nicknameDefaults: string[];
       nicknames: Record<string, string[]>;
+      levelUpRewards?: Character['levelUpRewards'];
+      interactionTopics?: Character['interactionTopics'];
     }) => {
       if (!regenReview) return;
       applyRegeneratedContent(regenReview.snapshot.id, patch);
@@ -375,6 +625,73 @@ export function AppMain({
     },
     [applyRegeneratedContent, regenReview],
   );
+
+  const handleGenerateLevelUpRewards = useCallback(async () => {
+    if (!selected) return;
+    const rewards = await runAi('rewards', () =>
+      generateLevelUpRewards(apiKey, selected),
+    );
+    if (rewards) {
+      updateLevelUpRewards(selected.id, rewards);
+    }
+  }, [apiKey, runAi, selected, updateLevelUpRewards]);
+
+  const handleGenerateInteractionTopic = useCallback(
+    async (targetId: string) => {
+      if (!selected) return;
+      const target = characters.find((c) => c.id === targetId);
+      if (!target) return;
+      const topic = await runAi(`topic-${targetId}`, () =>
+        generateInteractionTopic(apiKey, selected, target),
+      );
+      if (topic) {
+        updateInteractionTopic(
+          selected.id,
+          targetId,
+          topic.text,
+          topic.kind,
+        );
+      }
+    },
+    [apiKey, characters, runAi, selected, updateInteractionTopic],
+  );
+
+  const handleGenerateAllInteractionTopics = useCallback(async () => {
+    if (!selected) return;
+    const targets = characters.filter((c) => c.id !== selected.id);
+    if (targets.length === 0) {
+      setAiNotice({
+        kind: 'success',
+        message: 'Add more islanders to generate conversation topics',
+      });
+      return;
+    }
+    const topics = await runAi('all-topics', () =>
+      generateMissingInteractionTopics(apiKey, selected, targets),
+    );
+    if (topics) {
+      let added = 0;
+      const nameToId = new Map(characters.map((c) => [c.name, c.id]));
+      for (const [targetName, topicVal] of Object.entries(topics)) {
+        const id = nameToId.get(targetName);
+        if (id && topicVal.text.trim()) {
+          updateInteractionTopic(
+            selected.id,
+            id,
+            topicVal.text,
+            topicVal.kind,
+          );
+          added++;
+        }
+      }
+      if (added > 0) {
+        setAiNotice({
+          kind: 'success',
+          message: `Updated ${added} conversation topic${added === 1 ? '' : 's'}`,
+        });
+      }
+    }
+  }, [apiKey, characters, runAi, selected, updateInteractionTopic]);
 
   const handleGeneratePhrase = useCallback(
     async (type: PhraseType) => {
@@ -499,7 +816,6 @@ export function AppMain({
       <ConfigPage
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
-        accountEmail={accountEmail}
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
         onClearAllData={clearAllData}
@@ -512,30 +828,8 @@ export function AppMain({
     return <TosPage onBack={() => openView('main')} />;
   }
 
-  if (view === 'removeAds') {
-    return (
-      <RemoveAdsPage
-        payment={payment}
-        hasAccount={Boolean(userId)}
-        onBack={() => openView('main')}
-        onRemoveFree={handleRemoveFree}
-        onPaymentComplete={async () => {
-          await confirmPlayPurchase();
-          await refreshProfile();
-          openView('main');
-        }}
-      />
-    );
-  }
-
   return (
-    <div
-      className={
-        showAdBanner && shouldUseNativeAds()
-          ? 'app app--with-native-ads'
-          : 'app'
-      }
-    >
+    <div className="app">
       <Sidebar
         characters={sidebarCharacters}
         selectedId={selectedId}
@@ -546,8 +840,14 @@ export function AppMain({
         onOpenConfig={() => openView('config')}
         onOpenTos={() => openView('tos')}
         hasApiKey={hasApiKey}
-        signedIn={signedIn}
-        onSignOut={signedIn ? handleSignOut : undefined}
+        islands={islands}
+        activeIslandId={activeIslandId}
+        activeIslandName={activeIslandName}
+        onSwitchIsland={switchIsland}
+        onCreateIsland={() => createIsland()}
+        onRenameIsland={renameActiveIsland}
+        onRegenerateIsland={handleOpenIslandRegenOptions}
+        regeneratingIsland={islandRegen?.phase === 'running'}
       />
       <div className="main-area">
         <div className="main-area-body">
@@ -606,10 +906,19 @@ export function AppMain({
               onGenerateMissingNicknames={handleGenerateMissingNicknames}
               onRegenerateAll={handleRegenerateExistingCharacter}
               onOpenCharacter={handleOpenFromNicknames}
-              communityPhrasesEnabled={communityPhrasesEnabled}
-              communityNicknamesEnabled={communityNicknamesEnabled}
               islandersNickOpen={islandersNickOpen}
               onIslandersNickOpenChange={handleIslandersNickOpenChange}
+              socialRewardsOpen={socialRewardsOpen}
+              onSocialRewardsOpenChange={setSocialRewardsOpen}
+              onUpdateLevelUpRewards={(rewards) =>
+                updateLevelUpRewards(selected.id, rewards)
+              }
+              onUpdateInteractionTopic={(targetId, text, kind) =>
+                updateInteractionTopic(selected.id, targetId, text, kind)
+              }
+              onGenerateLevelUpRewards={handleGenerateLevelUpRewards}
+              onGenerateInteractionTopic={handleGenerateInteractionTopic}
+              onGenerateAllInteractionTopics={handleGenerateAllInteractionTopics}
             />
           ) : (
             <CharacterGrid
@@ -621,12 +930,6 @@ export function AppMain({
             />
           )}
         </div>
-        {showAdBanner && (
-          <AdBanner
-            payment={payment}
-            onOpenRemoveAds={() => openView('removeAds')}
-          />
-        )}
       </div>
 
       {showNewCharModal && (
@@ -643,16 +946,10 @@ export function AppMain({
         />
       )}
 
-      <SyncBanner
-        syncError={syncError}
-        showLocalPrompt={storageMode === 'local' && syncAvailable}
-        onCreateAccount={() => onOpenAuth('signUp')}
-        onSignIn={() => onOpenAuth('signIn')}
-      />
-
       <AiGenerationStatus
-        busy={generatingKey !== null}
-        notice={aiNotice}
+        busy={generatingKey !== null && !islandRegenBanner}
+        notice={saveError ? { kind: 'error', message: saveError } : aiNotice}
+        islandRegenBanner={islandRegenBanner}
         onDismissNotice={() => setAiNotice(null)}
       />
 
@@ -680,6 +977,38 @@ export function AppMain({
           onRegenerate={handleRegenerateExistingCharacter}
           onConfirm={handleConfirmRegenerateReview}
           onClose={() => setRegenReview(null)}
+        />
+      )}
+
+      {islandRegenOptionsOpen && (
+        <IslandRegenerateOptionsModal
+          characterCount={characters.length}
+          onStart={handleStartIslandRegeneration}
+          onCancel={() => setIslandRegenOptionsOpen(false)}
+        />
+      )}
+
+      {islandRegen && islandRegenModalOpen && (
+        <IslandRegenerateModal
+          progress={islandRegen}
+          onStop={handleStopIslandRegeneration}
+          onRetryFailed={handleRetryFailedIslandRegeneration}
+          onHide={handleHideIslandRegenerationModal}
+        />
+      )}
+
+      {pendingImport && (
+        <ImportIslandModal
+          characterCount={pendingImport.data.characters.length}
+          onReplace={() => {
+            replaceActiveIsland(pendingImport.data);
+            setPendingImport(null);
+          }}
+          onAddNew={() => {
+            importAsNewIsland(pendingImport.suggestedName, pendingImport.data);
+            setPendingImport(null);
+          }}
+          onCancel={() => setPendingImport(null)}
         />
       )}
     </div>

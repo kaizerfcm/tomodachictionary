@@ -87,7 +87,6 @@ export function NewCharacterModal({
         className="config-input"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Character name"
         autoFocus
         onKeyDown={(e) => {
           if (e.key === 'Enter' && canSubmit) {
@@ -104,21 +103,8 @@ export function NewCharacterModal({
         value={extra}
         maxLength={MAX_CHARACTER_EXTRA_LENGTH}
         rows={2}
-        placeholder="Source work, role, tone, iconic scenes to reference"
         onChange={(e) => setExtra(e.target.value)}
       />
-      <p className="modal-intro">
-        <strong>Quick fill</strong> adds generic starter lines (free).{' '}
-        {hasApiKey ? (
-          <>
-            <strong>Canon AI</strong> pulls dialogue from source material — use
-            Extra to specify franchise, role, and moments to reference. Canon
-            profanity is allowed when it matches the character.
-          </>
-        ) : (
-          <>Add a Gemini key in Configuration for canon-accurate dialogue.</>
-        )}
-      </p>
     </Modal>
   );
 }

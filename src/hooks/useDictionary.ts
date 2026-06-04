@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type Character,
   type DictionaryData,
+  type InteractionTopicKind,
   type PhraseType,
   createCharacter,
 } from '../types';
@@ -21,117 +22,102 @@ import {
   emptyIsland,
   loadIslandData,
   normalizeIsland,
+  persistIslandsStore,
   saveIslandLocallySafe,
-  saveIslandToCloudSafe,
 } from '../lib/islandPersistence';
-import { clearStorage, saveToStorage } from '../lib/storage';
-import { saveIslandToCloud } from '../lib/cloudStorage';
+import {
+  addIslandWithData,
+  createNewIsland,
+  deleteIsland,
+  getActiveIsland,
+  loadIslandsStore,
+  renameIsland,
+  replaceActiveIslandData,
+  setActiveIslandId,
+  updateActiveIslandData,
+  type IslandEntry,
+  type IslandsStore,
+} from '../lib/islandsStore';
 
-export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error';
-
-export interface UseDictionaryOptions {
-  storageMode: 'local' | 'cloud';
-  userId?: string | null;
-}
-
-export function useDictionary({
-  storageMode,
-  userId,
-}: UseDictionaryOptions) {
+export function useDictionary() {
+  const [islandsStore, setIslandsStore] = useState<IslandsStore>(() =>
+    loadIslandsStore(),
+  );
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const pendingData = useRef<DictionaryData | null>(null);
-  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const storageModeRef = useRef(storageMode);
-  const userIdRef = useRef(userId);
-  storageModeRef.current = storageMode;
-  userIdRef.current = userId;
 
-  const applyPendingData = useCallback((data: DictionaryData) => {
-    pendingData.current = normalizeIsland(data);
+  const activeIsland = getActiveIsland(islandsStore);
+
+  const applyStore = useCallback((store: IslandsStore) => {
+    persistIslandsStore(store);
+    setIslandsStore(store);
+    const island = getActiveIsland(store);
+    const normalized = normalizeIsland(island.data);
+    pendingData.current = normalized;
+    setCharacters(backfillCreatedAt(normalized.characters));
   }, []);
-
-  const runCloudSave = useCallback(
-    async (data: DictionaryData, userIdOverride?: string) => {
-      const uid = userIdOverride ?? userIdRef.current;
-      if (!uid) return null;
-      setSyncStatus('saving');
-      const cloudErr = await saveIslandToCloudSafe(uid, data);
-      if (cloudErr) {
-        setSyncStatus('error');
-        setSyncError(cloudErr);
-      } else {
-        setSyncError(null);
-        setSyncStatus('saved');
-      }
-      return cloudErr;
-    },
-    [],
-  );
-
-  const queueCloudSave = useCallback(
-    (data: DictionaryData) => {
-      if (storageModeRef.current !== 'cloud' || !userIdRef.current) return;
-      if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
-      cloudSaveTimer.current = setTimeout(() => {
-        cloudSaveTimer.current = null;
-        void runCloudSave(data);
-      }, 800);
-    },
-    [runCloudSave],
-  );
 
   const persistData = useCallback(
     (next: Character[]) => {
       const data: DictionaryData = { version: 1, characters: next };
-      applyPendingData(data);
-      if (storageModeRef.current === 'local') {
-        void saveIslandLocallySafe(data).then((localErr) => {
-          if (localErr) {
-            setSyncStatus('error');
-            setSyncError(localErr);
-          }
-        });
-        return;
-      }
-      queueCloudSave(data);
+      pendingData.current = normalizeIsland(data);
+      void saveIslandLocallySafe(data).then((localErr) => {
+        if (localErr) {
+          setSaveError(localErr);
+        } else {
+          setSaveError(null);
+        }
+      });
+      setIslandsStore((prev) => updateActiveIslandData(prev, data));
     },
-    [applyPendingData, queueCloudSave],
+    [],
   );
 
-  const syncToCloud = useCallback(async () => {
-    if (storageModeRef.current !== 'cloud' || !userIdRef.current) return;
-    if (!pendingData.current) return;
-    if (cloudSaveTimer.current) {
-      clearTimeout(cloudSaveTimer.current);
-      cloudSaveTimer.current = null;
-    }
-    await runCloudSave(pendingData.current);
-  }, [runCloudSave]);
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const store = loadIslandsStore();
+        const loaded = await loadIslandData();
+        if (cancelled) return;
+        setIslandsStore(store);
+        const normalized = normalizeIsland(loaded ?? emptyIsland());
+        pendingData.current = normalized;
+        setCharacters(backfillCreatedAt(normalized.characters));
+        setSelectedId(null);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Failed to load data');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const onBeforeUnload = () => {
       if (!pendingData.current) return;
-      if (storageModeRef.current === 'local') {
-        try {
-          saveToStorage(pendingData.current);
-        } catch {
-          /* ignore */
-        }
+      try {
+        const store = loadIslandsStore();
+        persistIslandsStore(updateActiveIslandData(store, pendingData.current));
+      } catch {
+        /* ignore */
       }
     };
     window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      if (cloudSaveTimer.current) {
-        clearTimeout(cloudSaveTimer.current);
-        cloudSaveTimer.current = null;
-      }
-    };
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
   const updateCharacters = useCallback(
@@ -155,53 +141,69 @@ export function useDictionary({
     [persistData],
   );
 
+  const replaceActiveIsland = useCallback(
+    (data: DictionaryData) => {
+      const normalized = normalizeIsland(data);
+      setCharacters(backfillCreatedAt(normalized.characters));
+      setSelectedId(null);
+      pendingData.current = normalized;
+      const store = replaceActiveIslandData(loadIslandsStore(), normalized);
+      applyStore(store);
+    },
+    [applyStore],
+  );
+
+  const importAsNewIsland = useCallback(
+    (name: string, data: DictionaryData) => {
+      const store = addIslandWithData(loadIslandsStore(), name, data);
+      applyStore(store);
+      setSelectedId(null);
+    },
+    [applyStore],
+  );
+
+  const switchIsland = useCallback(
+    (id: string) => {
+      const store = setActiveIslandId(loadIslandsStore(), id);
+      applyStore(store);
+      setSelectedId(null);
+    },
+    [applyStore],
+  );
+
+  const createIsland = useCallback(
+    (name?: string) => {
+      const store = createNewIsland(loadIslandsStore(), name);
+      applyStore(store);
+      setSelectedId(null);
+    },
+    [applyStore],
+  );
+
+  const renameActiveIsland = useCallback(
+    (name: string) => {
+      const store = renameIsland(loadIslandsStore(), activeIsland.id, name);
+      applyStore(store);
+    },
+    [activeIsland.id, applyStore],
+  );
+
+  const removeActiveIsland = useCallback(() => {
+    const store = deleteIsland(loadIslandsStore(), activeIsland.id);
+    if (!store) return false;
+    applyStore(store);
+    setSelectedId(null);
+    return true;
+  }, [activeIsland.id, applyStore]);
+
   const clearAllData = useCallback(async () => {
     const empty: DictionaryData = { version: 1, characters: [] };
     setCharacters([]);
     setSelectedId(null);
-    applyPendingData(empty);
-    if (storageMode === 'cloud' && userId) {
-      await saveIslandToCloud(userId, empty);
-    } else {
-      clearStorage();
-    }
-  }, [applyPendingData, storageMode, userId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadUserId = userId;
-    const loadStorageMode = storageMode;
-
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const loaded = await loadIslandData(loadStorageMode, loadUserId);
-        if (cancelled) return;
-        const normalized = normalizeIsland(loaded ?? emptyIsland());
-        applyPendingData(normalized);
-        setCharacters(backfillCreatedAt(normalized.characters));
-        setSelectedId(null);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load data');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (
-        loadStorageMode === 'cloud' &&
-        loadUserId &&
-        pendingData.current
-      ) {
-        void saveIslandToCloudSafe(loadUserId, pendingData.current);
-      }
-    };
-  }, [applyPendingData, storageMode, userId]);
+    pendingData.current = empty;
+    const store = replaceActiveIslandData(loadIslandsStore(), empty);
+    applyStore(store);
+  }, [applyStore]);
 
   const selected =
     characters.find((c) => c.id === selectedId) ?? null;
@@ -329,6 +331,8 @@ export function useDictionary({
         phrases: Character['phrases'];
         nicknameDefaults: string[];
         nicknames: Record<string, string[]>;
+        levelUpRewards?: Character['levelUpRewards'];
+        interactionTopics?: Character['interactionTopics'];
       },
     ) => {
       updateCharacters((prev) =>
@@ -339,6 +343,8 @@ export function useDictionary({
                 phrases: patch.phrases,
                 nicknameDefaults: patch.nicknameDefaults,
                 nicknames: patch.nicknames,
+                levelUpRewards: patch.levelUpRewards ?? c.levelUpRewards,
+                interactionTopics: patch.interactionTopics ?? c.interactionTopics,
               }
             : c,
         ),
@@ -354,9 +360,50 @@ export function useDictionary({
         return next.map((c) => {
           const nicknames = { ...c.nicknames };
           delete nicknames[id];
-          return { ...c, nicknames };
+          const interactionTopics = { ...c.interactionTopics };
+          delete interactionTopics[id];
+          return { ...c, nicknames, interactionTopics };
         });
       });
+    },
+    [updateCharacters],
+  );
+
+  const updateLevelUpRewards = useCallback(
+    (charId: string, levelUpRewards: Character['levelUpRewards']) => {
+      updateCharacters((prev) =>
+        prev.map((c) =>
+          c.id === charId
+            ? {
+                ...c,
+                levelUpRewards,
+              }
+            : c,
+        ),
+      );
+    },
+    [updateCharacters],
+  );
+
+  const updateInteractionTopic = useCallback(
+    (
+      charId: string,
+      targetId: string,
+      text: string,
+      kind: InteractionTopicKind = 'other',
+    ) => {
+      updateCharacters((prev) =>
+        prev.map((c) => {
+          if (c.id !== charId) return c;
+          const interactionTopics = { ...(c.interactionTopics ?? {}) };
+          if (text.trim()) {
+            interactionTopics[targetId] = { text: text.trim(), kind };
+          } else {
+            delete interactionTopics[targetId];
+          }
+          return { ...c, interactionTopics };
+        }),
+      );
     },
     [updateCharacters],
   );
@@ -552,6 +599,8 @@ export function useDictionary({
     [updateCharacters],
   );
 
+  const islands: IslandEntry[] = islandsStore.islands;
+
   return {
     characters,
     selected,
@@ -559,9 +608,16 @@ export function useDictionary({
     setSelectedId,
     loading,
     error,
-    storageMode,
-    syncStatus,
-    syncError,
+    saveError,
+    islands,
+    activeIslandId: islandsStore.activeIslandId,
+    activeIslandName: activeIsland.name,
+    switchIsland,
+    createIsland,
+    renameActiveIsland,
+    removeActiveIsland,
+    replaceActiveIsland,
+    importAsNewIsland,
     addCharacter,
     addCharacterFull,
     appendPhrasesBatch,
@@ -584,7 +640,8 @@ export function useDictionary({
     updateNicknameDefaultAt,
     addNicknameDefault,
     removeNicknameDefault,
+    updateLevelUpRewards,
+    updateInteractionTopic,
     clearAllData,
-    syncToCloud,
   };
 }

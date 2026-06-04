@@ -1,8 +1,13 @@
-import { PHRASE_TYPES, type Character, type PhraseType } from '../types';
+import { PHRASE_TYPES, type Character, type InteractionTopic, type InteractionTopicKind, type PhraseType, type LevelUpRewards } from '../types';
 import type { FullCharacterGeneration, Triplet } from './gemini/types';
 import type { MissingNicknamePairs } from './missingNicknames';
 import type { GeneratedMissingNicknames } from './gemini/types';
 import { clampOutgoingNickname, clampPhraseForType, isShortPhraseType } from './textLimits';
+import {
+  GIFT_FIELD_META,
+  normalizeGifts,
+  type GiftFieldKey,
+} from './livingTheDreamGifts';
 
 const PHRASE_POOLS: Record<PhraseType, string[]> = {
   catchphrases: [
@@ -46,6 +51,10 @@ const PHRASE_POOLS: Record<PhraseType, string[]> = {
   whileSleeping: ['Zzz...', 'Mmph...', 'Snore...', '...', 'Five more...'],
   greeting: ['Hey!', 'Hi there!', 'Hello!', 'Howdy!', 'Good to see you!'],
 };
+
+function pickFromCatalog<T>(pool: readonly T[]): T {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 const DEFAULT_NICK_SUFFIXES = ['buddy', 'pal', 'friend', 'chief', 'sport'];
 const OUTGOING_PATTERNS = ['', '-o', 'ie', 'ster', 'kins'];
@@ -186,6 +195,56 @@ export function generateLocalIncomingNickname(
   return `${sub}${Math.floor(Math.random() * 9)}`;
 }
 
+export function generateLocalLevelUpRewards(): LevelUpRewards {
+  const raw: Partial<LevelUpRewards> = {};
+  for (const key of Object.keys(GIFT_FIELD_META) as GiftFieldKey[]) {
+    raw[key] = pickFromCatalog(GIFT_FIELD_META[key].options);
+  }
+  return normalizeGifts(raw);
+}
+
+const TOPIC_KINDS: InteractionTopicKind[] = [
+  'person',
+  'thing',
+  'activity',
+  'other',
+];
+
+export function generateLocalInteractionTopic(
+  _subject: Character,
+  target: Character,
+): InteractionTopic {
+  const tgt = firstWord(target.name);
+  const pools: Record<InteractionTopicKind, string[]> = {
+    person: [
+      `${tgt}'s personality`,
+      `what ${tgt} is like lately`,
+      `how ${tgt} handles stress`,
+    ],
+    thing: [
+      'their favorite snack',
+      'a cool gadget',
+      'something they recently bought',
+    ],
+    activity: [
+      'going for a walk',
+      'playing games together',
+      'learning a new skill',
+    ],
+    other: [
+      'the weather today',
+      'their favorite season',
+      'getting some rest',
+    ],
+  };
+  const kind = pickFromCatalog(TOPIC_KINDS);
+  const pool = pools[kind];
+  return {
+    text: pool[Math.floor(Math.random() * pool.length)],
+    kind,
+  };
+}
+
 function tripletFrom(fn: () => string): Triplet {
   const a = fn();
   let b = fn();
@@ -212,6 +271,15 @@ export function generateQuickFillCharacter(
     ) as Character['phrases'],
     nicknameDefaults: [],
     nicknames: {},
+    levelUpRewards: {
+      song: '',
+      interior: '',
+      clothing: '',
+      hat: '',
+      goods: '',
+      quirks: '',
+    },
+    interactionTopics: {},
     createdAt: Date.now(),
   };
 
@@ -226,11 +294,13 @@ export function generateQuickFillCharacter(
   ) as FullCharacterGeneration['phrases'];
 
   const byTargetName: Record<string, Triplet> = {};
+  const interactionTopics: FullCharacterGeneration['interactionTopics'] = {};
   for (const target of existingCharacters) {
     const tStub = { ...stub, nicknames: {} };
     byTargetName[target.name] = tripletFrom(() =>
       generateLocalOutgoingNickname(tStub, target),
     );
+    interactionTopics[target.name] = generateLocalInteractionTopic(stub, target);
   }
 
   return {
@@ -240,6 +310,8 @@ export function generateQuickFillCharacter(
       byTargetName,
     },
     incoming: { bySpeakerName: {} },
+    levelUpRewards: generateLocalLevelUpRewards(),
+    interactionTopics,
   };
 }
 

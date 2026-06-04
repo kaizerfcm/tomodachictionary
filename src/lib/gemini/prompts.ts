@@ -1,5 +1,5 @@
 import { AI_INITIAL_BATCH_SIZE, MAX_PHRASE_LENGTH, MAX_SHORT_TEXT_LENGTH } from '../../constants';
-import type { Character } from '../../types';
+import type { Character, DictionaryData } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
 import {
   formatCharacterExtraBlock,
@@ -8,13 +8,25 @@ import {
 import type { MissingNicknamePairs } from '../missingNicknames';
 import { getEffectiveNickname } from '../nicknames';
 import { isShortPhraseType } from '../textLimits';
+import { formatGiftCatalogForPrompt } from '../livingTheDreamGifts';
+import { serializeIslandJson } from '../islandJson';
 
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
 ).join('\n');
 
-const LANGUAGE_RULES = `- Preserve the character's original language, slang, and regional dialects if they are iconic to them (e.g., Brazilian Portuguese memes, specific Japanese catchphrases).
-- If translating to English, preserve the exact meaning, tone, and famous-line feel. Do not sanitize.`;
+const TOMODACHI_LINGO_RULES = `TOMODACHI LIFE OUTPUT (player-visible text):
+- Target game: Tomodachi Life: Living the Dream dialogue slots — short, spoken, fun lines.
+- Write in ENGLISH for phrases, nicknames, topics, and reward text.
+- Exception: at most ONE iconic catchphrase in its original language if universally recognized (short verbal tic only) across the entire phrase set.
+- NEVER output copyrighted/trademark names, franchise titles, or other characters from the source work in dialogue or suggestions.
+- NEVER reference castmates from the character's franchise — lines must work on a generic Tomodachi island talking to random islanders.
+- Do not browse the web, fetch URLs, or use URL context. Ignore any http/https links in input (including localhost).`;
+
+const NO_URL_RULES = `URL / WEB (required):
+- Do NOT browse the web or fetch URLs.
+- Ignore any http/https links in the input (including localhost).
+- Do not mention browsing failures or unsupported sites in output.`;
 
 const PHRASE_LENGTH_RULES = `PHRASE LENGTH (hard limits — count EVERY character including spaces and punctuation):
 - catchphrases, beforeEating, shoutAtSea, whenHappy, whenSad, whenAngry, whileSleeping, greeting: max ${MAX_PHRASE_LENGTH} characters each. Prefer 8–20.
@@ -24,23 +36,35 @@ const PHRASE_LENGTH_RULES = `PHRASE LENGTH (hard limits — count EVERY characte
 
 const SHORT_TEXT_LIMIT_RULES = `- Hard limit (${MAX_SHORT_TEXT_LENGTH} characters max): all outgoing nicknames in nicknameDefault and byTargetName. Abbreviate if needed.`;
 
-const CANON_MOMENTS_RULES = `ICONIC MOMENTS (required — generic personality blurbs = failure):
-- Mine trailers, reveal cinematics, music videos, cutscenes, promotional clips, memes, and fan-quoted scenes tied to THIS character.
-- Across the full phrase set, at least half of all options must nod to a specific famous moment fans would recognize (e.g. a MV reveal, trailer catchphrase, signature visual gag, boss-line, viral clip).
-- Video-game characters: pull from in-game voice lines and marketing material — not polite small talk.`;
+const CANON_MOMENTS_RULES = `ICONIC VOICE (required — generic personality blurbs = failure):
+- Draw tone and attitude from trailers, reveal cinematics, music videos, cutscenes, memes, and fan-quoted scenes tied to THIS character — but express it in generic English island dialogue.
+- Across the full phrase set, at least half of all options must feel like a specific famous moment fans would recognize (signature catchphrase energy, visual gag, boss-line attitude, viral clip vibe) without naming the source.
+- Video-game characters: channel in-game voice and marketing energy — not polite small talk.`;
 
 const EXPLICIT_LANGUAGE_RULES = `LANGUAGE & TONE (match the source — no censorship):
 - This dictionary mirrors in-game dialogue slots; there is no content filter.
-- Reproduce canon profanity, crude jokes, sexual innuendo, and swearing when the character uses them (e.g. nu-metal frontmen, gritty anti-heroes).
+- Reproduce canon profanity, crude jokes, sexual innuendo, and swearing when the character uses them.
 - Do not sanitize, bowdlerize, or replace swears with mild euphemisms unless the canon line is mild.`;
 
 const CANON_DIALOGUE_RULES = `CANON DIALOGUE (required — wrong character or generic filler = failure):
-- Lock onto ONE character: the named CHARACTER and their source work (game, anime, manga, VN, etc.) from name + Extra. Do not write lines for a different character with a similar name.
-- Each phrase must be a quote, tight paraphrase, or unmistakable reference to THAT character's canon (catchphrase, job, running gag, relationship, famous scene).
+- Lock onto ONE character: the named CHARACTER and their source work from name + Extra. Do not write lines for a different character with a similar name.
+- Each phrase must be a quote, tight paraphrase, or unmistakable reference to THAT character's canon (catchphrase, job, running gag, relationship energy, famous scene) — expressed as generic island dialogue.
 - Match their speech habits: tics, sarcasm, formality, profanity level, sleepy mumbles, food lines, etc.
 - FORBIDDEN: bland villager filler ("Hey!", "Yay!", "So happy!", "Life is good", "Best day", "You know it!", "Good to see you!") and lines that could belong to any random islander.
 - Do not add trailing periods or commas unless that punctuation is part of a famous canon line.
-- If the source is obscure, use Extra notes (series/game name is critical); never invent an unrelated franchise or OC voice.`;
+- If the source is obscure, use Extra notes to lock canon; never invent an unrelated franchise or OC voice.`;
+
+const INTERACTION_TOPIC_RULES = `INTERACTION TOPICS (Living the Dream):
+- Each topic value MUST be an object: { "text": "short topic in English", "kind": "person"|"thing"|"activity"|"other" }
+- kind "person": the topic is mainly about a person or relationship type (generic — never a copyrighted name)
+- kind "thing": the topic is mainly about an object, food, place, or tangible thing
+- kind "activity": the topic is mainly about a hobby, sport, or shared activity
+- kind "other": anything that does not fit the above
+- text must be generic island dialogue — no franchise or trademark names`;
+
+const LTD_GIFTS_RULES = `LEVEL-UP GIFTS (Tomodachi Life: Living the Dream — pick EXACT catalog names):
+Suggest exactly ONE value per JSON key below. Each value MUST be copied exactly from the allowed list for that key (same spelling and punctuation).
+${formatGiftCatalogForPrompt()}`;
 
 const JSON_ARRAY_RULES = `- Each value MUST be a JSON array containing exactly ${AI_INITIAL_BATCH_SIZE} distinct string options.
 - startingSentence / endingSentence: tiny opener/closer fragments only from canon.`;
@@ -93,8 +117,8 @@ function buildCompactCastNames(
 
 function characterIdentityBlock(name: string, extra?: string): string {
   const extraBlock = extra?.trim()
-    ? `\nExtra (source / series / role — use this to lock canon):\n${extra.trim()}\n`
-    : '\nExtra: (none — infer source work from the character name; if ambiguous, pick the best-known franchise match; still mine iconic trailers/MVs/memes for that character)\n';
+    ? `\nExtra (source / series / role — hidden context only, do not quote in output):\n${extra.trim()}\n`
+    : '\nExtra: (none — infer source work from the character name for voice; still channel iconic energy in generic English dialogue)\n';
   return `CHARACTER: "${name}"${extraBlock}`;
 }
 
@@ -125,20 +149,23 @@ export function buildFullCharacterPhrasesPrompt(
   newName: string,
   newExtra?: string,
 ): string {
-  return `You are quoting spoken dialogue from ONE character's ORIGINAL canon for a life-simulation dialogue UI with strict length slots.
+  return `You are quoting spoken dialogue and suggesting level up rewards from ONE character's ORIGINAL canon for a life-simulation dialogue UI.
 
 ${characterIdentityBlock(newName, newExtra)}
 ${CANON_DIALOGUE_RULES}
 ${CANON_MOMENTS_RULES}
 ${EXPLICIT_LANGUAGE_RULES}
+${TOMODACHI_LINGO_RULES}
 ${PHRASE_LENGTH_RULES}
 
 Phrase types (exact JSON keys):
 ${PHRASE_TYPE_LIST}
 
+Level-up gifts (Living the Dream):
+${LTD_GIFTS_RULES}
+
 Rules:
-${LANGUAGE_RULES}
-${EXPLICIT_LANGUAGE_RULES}
+${TOMODACHI_LINGO_RULES}
 ${JSON_ARRAY_RULES}
 - "Starting a sentence" = opener fragment; "Ending a sentence" = closer fragment (may start with punctuation).
 - Self-check each string length before output; truncate if needed.
@@ -157,6 +184,14 @@ Return ONLY valid JSON:
     "whenAngry": ["canon line here"],
     "whileSleeping": ["canon line here"],
     "greeting": ["canon line here"]
+  },
+  "levelUpRewards": {
+    "song": "song description",
+    "interior": "interior description",
+    "clothing": "clothing description",
+    "hat": "hat description",
+    "goods": "goods description",
+    "quirks": "quirk description"
   }
 }`;
 }
@@ -171,7 +206,7 @@ export function buildFullCharacterNicknamesPrompt(
   const cast = buildCastListForNicknames(targets);
   const hasCast = targets.length > 0;
 
-  return `Write outgoing nicknames from ONE character's source canon for a life-simulation cast.
+  return `Write outgoing nicknames and conversation topics from ONE character's source canon for a life-simulation cast.
 
 ${characterIdentityBlock(newName, newExtra)}
 ${canonNicknameRules(newName)}
@@ -184,14 +219,18 @@ ${SHORT_TEXT_LIMIT_RULES}
 - Provide exactly ${AI_INITIAL_BATCH_SIZE} distinct nickname options per array.
 ${includeDefaults ? `- nicknameDefault: an array of default nicknames "${newName}" uses for strangers / new acquaintances.` : '- Do NOT include nicknameDefault in the JSON.'}
 ${hasCast
-    ? `- byTargetName: for EACH cast member listed above, an array of nicknames "${newName}" would use (relationship-specific, from canon).`
-    : `- byTargetName: use {} (no other islanders yet).`}
+    ? `- byTargetName: for EACH cast member listed above, an array of nicknames "${newName}" would use (relationship-specific, from canon).
+- interactionTopics: for EACH cast member listed above, suggest ONE conversation topic object that "${newName}" would use to talk to them.
+${INTERACTION_TOPIC_RULES}`
+    : `- byTargetName: use {} (no other islanders yet).
+- interactionTopics: use {} (no other islanders yet).`}
 - This request is standalone — ignore any prior conversation; focus only on "${newName}".
 
 Return ONLY valid JSON:
 {
   ${includeDefaults ? '"nicknameDefault": ["canon nickname here"],' : ''}
-  "byTargetName": { "Cast Member Name": ["canon nickname here"] }
+  "byTargetName": { "Cast Member Name": ["canon nickname here"] },
+  "interactionTopics": { "Cast Member Name": { "text": "topic here", "kind": "activity" } }
 }`;
 }
 
@@ -221,6 +260,7 @@ ${formatCharacterExtraBlock(character)}
 ${CANON_DIALOGUE_RULES}
 ${CANON_MOMENTS_RULES}
 ${EXPLICIT_LANGUAGE_RULES}
+${TOMODACHI_LINGO_RULES}
 ${PHRASE_LENGTH_RULES}
 
 Phrase category: ${phraseLabel(type)} (JSON key: ${type})
@@ -231,7 +271,7 @@ EXISTING lines for this type (do NOT duplicate):
 ${JSON.stringify(existing)}
 
 Rules:
-${LANGUAGE_RULES}
+${TOMODACHI_LINGO_RULES}
 ${type === 'shoutAtSea' ? '- ALL CAPS if they shout in canon; still within character limit.\n' : ''}- Count characters before answering; shorten if over limit.
 - This request is standalone — ignore any prior conversation; focus only on "${character.name}".
 
@@ -309,9 +349,9 @@ INCOMING — nicknames each islander would use for "${subject.name}" (only these
 ${incomingNames.length ? incomingNames.join(', ') : '(none — use {})'}
 
 Rules:
+${TOMODACHI_LINGO_RULES}
 - Outgoing nicknames: at most ${MAX_SHORT_TEXT_LENGTH} characters each.
 - Incoming nicknames: short and in-character from each speaker's canon.
-- Preserve the character's native language/slang.
 - Do not duplicate existing nicknames already on the island.
 - Include ONLY keys listed above; omit everyone else.
 
@@ -319,5 +359,121 @@ Return ONLY valid JSON:
 {
   "outgoing": { "Islander Name": "nickname" },
   "incoming": { "Islander Name": "nickname" }
+}`;
+}
+
+export function buildLevelUpRewardsPrompt(
+  character: Character,
+): string {
+  return `Suggest level-up gifts for ONE character based on their background canon for Tomodachi Life: Living the Dream.
+  
+${characterIdentityBlock(character.name, character.extra)}
+${formatCharacterExtraBlock(character)}
+
+${LTD_GIFTS_RULES}
+${TOMODACHI_LINGO_RULES}
+
+Return ONLY valid JSON:
+{
+  "song": "expression from list",
+  "interior": "interior set from list",
+  "clothing": "clothing gift from list",
+  "hat": "pocket money or gadget from list",
+  "goods": "prezzie from list",
+  "quirks": "little quirk from list"
+}`;
+}
+
+export function buildInteractionTopicPrompt(
+  subject: Character,
+  target: Character,
+): string {
+  return `Suggest ONE topic of conversation that "${subject.name}" would use to talk to "${target.name}" based on their background lore / series.
+  
+Character 1:
+${characterIdentityBlock(subject.name, subject.extra)}
+
+Character 2:
+${characterIdentityBlock(target.name, target.extra)}
+
+Determine the relationship/interactions between these two characters.
+Suggest a specific topic or conversation starter that Character 1 ("${subject.name}") would bring up when talking to Character 2 ("${target.name}").
+
+${TOMODACHI_LINGO_RULES}
+${INTERACTION_TOPIC_RULES}
+
+Return ONLY valid JSON:
+{
+  "topic": { "text": "topic here", "kind": "thing" }
+}`;
+}
+
+export function buildMissingInteractionTopicsPrompt(
+  subject: Character,
+  targets: Character[],
+): string {
+  const targetList = targets.map(t => `- ${t.name}${t.extra ? ` — ${t.extra}` : ''}`).join('\n');
+  return `Suggest conversation topics that "${subject.name}" would use to talk to other characters on the island.
+  
+Character 1 (speaker):
+${characterIdentityBlock(subject.name, subject.extra)}
+
+Other characters on the island:
+${targetList}
+
+Suggest exactly ONE conversation topic for each of the other characters listed above.
+The topic should be a specific, interesting, and fun subject that "${subject.name}" would talk to them about, based on their backgrounds or lore.
+
+${INTERACTION_TOPIC_RULES}
+- Keep text short (a few words or a single sentence).
+
+Return ONLY valid JSON in the format:
+{
+  "topics": {
+    "Target Name 1": { "text": "topic here", "kind": "activity" },
+    "Target Name 2": { "text": "topic here", "kind": "thing" }
+  }
+}`;
+}
+
+export function buildIslandRegenerateBatchPrompt(data: DictionaryData): string {
+  const castLines = data.characters
+    .map((c) => `- id "${c.id}": ${c.name}${c.extra ? ` (${c.extra})` : ''}`)
+    .join('\n');
+
+  const phraseKeys = PHRASE_TYPES.map(({ key }) => `"${key}"`).join(', ');
+
+  return `Regenerate ALL player-visible dialogue and social data for an entire Tomodachi island in ONE response.
+
+${NO_URL_RULES}
+${TOMODACHI_LINGO_RULES}
+${CANON_DIALOGUE_RULES}
+${CANON_MOMENTS_RULES}
+${EXPLICIT_LANGUAGE_RULES}
+${PHRASE_LENGTH_RULES}
+${SHORT_TEXT_LIMIT_RULES}
+${INTERACTION_TOPIC_RULES}
+${LTD_GIFTS_RULES}
+
+CAST (preserve these ids exactly — nicknames and interactionTopics use target CHARACTER IDs as keys):
+${castLines}
+
+INPUT JSON (same shape must be returned):
+${serializeIslandJson(data)}
+
+TASK:
+- Rewrite phrases, nicknameDefaults, nicknames, levelUpRewards, and interactionTopics for EVERY character.
+- Keep each character's "id", "name", "extra", and "createdAt" EXACTLY unchanged.
+- Do NOT include "avatar" in output (omit the field).
+- phrases: arrays of strings per key (${phraseKeys}); up to 3 lines per type, canon-accurate voice.
+- nicknames: keys are TARGET character ids from the cast list above; values are string arrays.
+- interactionTopics: keys are TARGET character ids; values are { "text", "kind" } objects.
+- levelUpRewards: use exact Living the Dream catalog names (song=Expression, hat=Pocket money/gadget, goods=Prezzie, quirks=Little quirk).
+- This is a standalone request — no conversation history. Return ONLY the full JSON object, no markdown.
+
+Return ONLY valid JSON with the same top-level shape:
+{
+  "version": 1,
+  "characters": [ ... ]
 }`;
 }

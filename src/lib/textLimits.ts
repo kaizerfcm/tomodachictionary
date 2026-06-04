@@ -54,5 +54,7 @@ export function applyShortTextLimitsToGeneration(
       ),
     },
     incoming: generation.incoming,
+    levelUpRewards: generation.levelUpRewards,
+    interactionTopics: generation.interactionTopics,
   };
 }

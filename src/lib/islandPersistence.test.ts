@@ -3,10 +3,11 @@ import {
   emptyIsland,
   loadIslandData,
   normalizeIsland,
-  saveIslandLocally,
+  saveIslandLocallySafe,
 } from './islandPersistence';
-import { loadFromStorage } from './storage';
+import { loadIslandsStore } from './islandsStore';
 import { createCharacter } from '../types';
+import { saveToStorage } from './storage';
 
 describe('island persistence', () => {
   beforeEach(() => {
@@ -19,23 +20,28 @@ describe('island persistence', () => {
     expect(data.characters[0].name).toBe('Test');
   });
 
-  it('saveIslandLocally writes to localStorage', () => {
+  it('saveIslandLocallySafe writes to islands store', async () => {
+    loadIslandsStore();
     const c = createCharacter('Bob');
-    saveIslandLocally({ version: 1, characters: [c] });
-    const loaded = loadFromStorage();
-    expect(loaded?.characters[0].name).toBe('Bob');
+    const err = await saveIslandLocallySafe({ version: 1, characters: [c] });
+    expect(err).toBeNull();
+    const loaded = await loadIslandData();
+    expect(loaded.characters[0].name).toBe('Bob');
   });
 
-  it('loadIslandData in local mode reads localStorage only', async () => {
-    const c = createCharacter('LocalOnly');
-    saveIslandLocally({ version: 1, characters: [c] });
-    const loaded = await loadIslandData('local', null);
-    expect(loaded.characters.map((x) => x.name)).toEqual(['LocalOnly']);
-  });
-
-  it('loadIslandData in local mode returns empty when nothing saved', async () => {
-    const loaded = await loadIslandData('local', undefined);
+  it('loadIslandData returns empty when nothing saved', async () => {
+    const loaded = await loadIslandData();
     expect(loaded.characters).toEqual([]);
+  });
+
+  it('migrates legacy v1 storage into islands store', async () => {
+    const c = createCharacter('Legacy');
+    saveToStorage({ version: 1, characters: [c] });
+    const loaded = await loadIslandData();
+    expect(loaded.characters.map((x) => x.name)).toEqual(['Legacy']);
+    const store = loadIslandsStore();
+    expect(store.islands).toHaveLength(1);
+    expect(store.islands[0].name).toBe('Island 1');
   });
 
   it('emptyIsland returns versioned empty cast', () => {

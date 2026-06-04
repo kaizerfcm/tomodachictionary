@@ -7,29 +7,56 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 export interface ModelCallOptions {
   prompt: string;
   maxOutputTokens: number;
+  signal?: AbortSignal;
+}
+
+export interface ModelCallResult {
+  text: string;
+  finishReason?: string;
 }
 
 export async function callGemini(
   apiKey: string,
   options: ModelCallOptions,
-): Promise<string> {
+): Promise<ModelCallResult> {
   const key = apiKey.trim();
   if (!key) {
     throw new AiError('Add a Gemini API key in Configuration');
   }
 
-  const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: options.prompt }] }],
-      generationConfig: {
-        temperature: 0.85,
-        maxOutputTokens: options.maxOutputTokens,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
+  if (options.signal?.aborted) {
+    throw new AiError('Generation cancelled');
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: options.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: options.prompt }] }],
+        generationConfig: {
+          temperature: 0.85,
+          maxOutputTokens: options.maxOutputTokens,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+  } catch (e) {
+    if (
+      options.signal?.aborted ||
+      (e instanceof DOMException && e.name === 'AbortError') ||
+      (e instanceof Error && e.name === 'AbortError')
+    ) {
+      throw new AiError('Generation cancelled');
+    }
+    throw new AiError(e instanceof Error ? e.message : 'Network error');
+  }
+
+  if (options.signal?.aborted) {
+    throw new AiError('Generation cancelled');
+  }
 
   if (!res.ok) {
     const errBody = await res.text();
@@ -46,9 +73,22 @@ export async function callGemini(
   }
 
   const data = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    candidates?: {
+      content?: { parts?: { text?: string }[] };
+      finishReason?: string;
+    }[];
+    promptFeedback?: { blockReason?: string };
   };
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new AiError('Empty response from Gemini');
-  return text;
+
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text;
+  if (!text) {
+    const block = data.promptFeedback?.blockReason;
+    throw new AiError(block ? `Blocked by Gemini: ${block}` : 'Empty response from Gemini');
+  }
+
+  return {
+    text,
+    finishReason: candidate?.finishReason,
+  };
 }

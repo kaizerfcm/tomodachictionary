@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { APP_NAME } from '../constants';
 import type { Character } from '../types';
+import type { IslandEntry } from '../lib/islandsStore';
 import {
   getSidebarCollapsed,
   getSidebarListOpen,
@@ -20,8 +21,14 @@ interface SidebarProps {
   onOpenConfig: () => void;
   onOpenTos: () => void;
   hasApiKey: boolean;
-  signedIn?: boolean;
-  onSignOut?: () => void;
+  islands: IslandEntry[];
+  activeIslandId: string;
+  activeIslandName: string;
+  onSwitchIsland: (id: string) => void;
+  onCreateIsland: () => void;
+  onRenameIsland: (name: string) => void;
+  onRegenerateIsland?: () => void;
+  regeneratingIsland?: boolean;
 }
 
 export function Sidebar({
@@ -34,8 +41,14 @@ export function Sidebar({
   onOpenConfig,
   onOpenTos,
   hasApiKey,
-  signedIn,
-  onSignOut,
+  islands,
+  activeIslandId,
+  activeIslandName,
+  onSwitchIsland,
+  onCreateIsland,
+  onRenameIsland,
+  onRegenerateIsland,
+  regeneratingIsland = false,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(getSidebarCollapsed);
   const [listOpen, setListOpen] = useState(getSidebarListOpen);
@@ -63,6 +76,11 @@ export function Sidebar({
     if (importRef.current) importRef.current.value = '';
   };
 
+  const handleRenameIsland = () => {
+    const next = window.prompt('Island name', activeIslandName);
+    if (next != null) onRenameIsland(next);
+  };
+
   const showList = collapsed || listOpen;
 
   return (
@@ -82,9 +100,52 @@ export function Sidebar({
         </div>
         {!collapsed && (
           <>
+            <div className="sidebar-island-picker">
+              <label className="sidebar-island-label" htmlFor="active-island">
+                Island
+              </label>
+              <select
+                id="active-island"
+                className="sidebar-island-select"
+                value={activeIslandId}
+                onChange={(e) => onSwitchIsland(e.target.value)}
+              >
+                {islands.map((island) => (
+                  <option key={island.id} value={island.id}>
+                    {island.name}
+                  </option>
+                ))}
+              </select>
+              <div className="sidebar-island-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={onCreateIsland}
+                >
+                  New island
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleRenameIsland}
+                >
+                  Rename
+                </button>
+              </div>
+            </div>
             <button type="button" className="btn btn-primary btn-sm btn-block" onClick={onAdd}>
               + Add character
             </button>
+            {hasApiKey && characters.length > 0 && onRegenerateIsland && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm btn-block"
+                disabled={regeneratingIsland}
+                onClick={onRegenerateIsland}
+              >
+                {regeneratingIsland ? 'Regenerating island…' : '✨ Regenerate island'}
+              </button>
+            )}
             {hasApiKey && (
               <span className="api-badge" title="Gemini API key configured">
                 AI on
@@ -118,7 +179,7 @@ export function Sidebar({
             aria-label="Characters"
           >
             {characters.length === 0 ? (
-              <p className="empty-hint sidebar-empty">No characters yet.</p>
+              <p className="empty-hint sidebar-empty">No characters</p>
             ) : (
               characters.map((c) => (
                 <button
@@ -149,9 +210,6 @@ export function Sidebar({
             label="Import JSON"
             onClick={() => importRef.current?.click()}
           />
-          {signedIn && onSignOut && (
-            <IconButton icon="signOut" label="Sign out" onClick={onSignOut} />
-          )}
         </div>
         <input
           ref={importRef}

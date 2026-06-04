@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react';
-import {
-  PHRASE_TYPES,
-  createCharacter,
-  emptyPhrases,
-  type Character,
-  type PhraseType,
-} from '../types';
+import { PHRASE_TYPES, createCharacter, emptyPhrases, type Character, type PhraseType } from '../types';
 import type { FullCharacterGeneration } from '../lib/gemini/types';
+import { parseInteractionTopicFromAi } from '../lib/interactionTopics';
 import { OptionTripletMulti } from './OptionTriplet';
 import { Modal } from './Modal';
+import { GiftsFieldsEditor } from './GiftsFieldsEditor';
+import { InteractionTopicEditor } from './InteractionTopicEditor';
 
 interface NewCharacterReviewModalProps {
   name: string;
@@ -38,6 +35,11 @@ export function NewCharacterReviewModal({
   onConfirm,
   onClose,
 }: NewCharacterReviewModalProps) {
+  const nameToId = useMemo(
+    () => new Map(existingCharacters.map((c) => [c.name, c.id])),
+    [existingCharacters],
+  );
+
   const [phrasePicks, setPhrasePicks] = useState(() =>
     Object.fromEntries(
       PHRASE_TYPES.map(({ key }) => [
@@ -59,10 +61,28 @@ export function NewCharacterReviewModal({
       ),
   );
 
-  const nameToId = useMemo(
-    () => new Map(existingCharacters.map((c) => [c.name, c.id])),
-    [existingCharacters],
-  );
+  const [levelUpRewards, setLevelUpRewards] = useState(() => ({
+    song: generation.levelUpRewards?.song ?? '',
+    interior: generation.levelUpRewards?.interior ?? '',
+    clothing: generation.levelUpRewards?.clothing ?? '',
+    hat: generation.levelUpRewards?.hat ?? '',
+    goods: generation.levelUpRewards?.goods ?? '',
+    quirks: generation.levelUpRewards?.quirks ?? '',
+  }));
+
+  const [interactionTopics, setInteractionTopics] = useState<
+    Character['interactionTopics']
+  >(() => {
+    const topics: NonNullable<Character['interactionTopics']> = {};
+    for (const [targetName, val] of Object.entries(
+      generation.interactionTopics ?? {},
+    )) {
+      const id = nameToId.get(targetName);
+      const topic = parseInteractionTopicFromAi(val);
+      if (id && topic) topics[id] = topic;
+    }
+    return topics;
+  });
 
   const handleConfirm = () => {
     const phrases = emptyPhrases();
@@ -91,6 +111,8 @@ export function NewCharacterReviewModal({
       phrases,
       nicknameDefaults,
       nicknames,
+      levelUpRewards,
+      interactionTopics,
     };
 
     onConfirm({ character: char, incomingBySpeakerId: {} });
@@ -128,11 +150,9 @@ export function NewCharacterReviewModal({
       }
     >
       <p className="modal-intro">
-        Review the generated lines before adding. Not happy with the result?
-        Regenerate all for a fresh pass. You can also generate more lines per
-        category after adding. How other islanders call {name} is set on their
-        profiles after adding.
+        Review before adding.
       </p>
+
       <section className="review-section">
         <h3>Dialogue phrases</h3>
         {PHRASE_TYPES.map(({ key, label }) => (
@@ -151,6 +171,46 @@ export function NewCharacterReviewModal({
           />
         ))}
       </section>
+
+      <section className="review-section">
+        <h3>Gifts & Conversation Topics</h3>
+        <GiftsFieldsEditor
+          gifts={levelUpRewards}
+          onChange={setLevelUpRewards}
+          idPrefix="new-char-gifts"
+          className="review-rewards-grid"
+        />
+
+        {Object.keys(generation.interactionTopics || {}).length > 0 && (
+          <div className="review-topics-list">
+            <h4>Conversation Topics</h4>
+            {Object.entries(generation.interactionTopics || {}).map(
+              ([targetName]) => {
+                const id = nameToId.get(targetName);
+                if (!id) return null;
+                return (
+                  <div key={id} className="review-topic-row">
+                    <span className="review-topic-label">
+                      Talk to {targetName} about:
+                    </span>
+                    <InteractionTopicEditor
+                      topic={interactionTopics?.[id]}
+                      onChange={(text, kind) =>
+                        setInteractionTopics((prev) => ({
+                          ...prev,
+                          [id]: { text, kind },
+                        }))
+                      }
+                      inputClassName="review-topic-input"
+                    />
+                  </div>
+                );
+              },
+            )}
+          </div>
+        )}
+      </section>
+
       <section className="review-section">
         <h3>Calls others</h3>
         <OptionTripletMulti
@@ -171,7 +231,9 @@ export function NewCharacterReviewModal({
               key={targetName}
               label={targetName}
               options={triplet}
-              selectedIndices={outgoingPicks[targetName] ?? initialPicks(triplet)}
+              selectedIndices={
+                outgoingPicks[targetName] ?? initialPicks(triplet)
+              }
               onToggle={(i) =>
                 setOutgoingPicks((p) => {
                   const cur = [...(p[targetName] ?? initialPicks(triplet))];

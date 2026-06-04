@@ -1,6 +1,6 @@
 # Tomodict
 
-Dialogue and nickname editor for custom island casts.
+Dialogue and nickname editor for custom island casts (Tomodachi Life: Living the Dream).
 
 ```bash
 npm install
@@ -11,6 +11,4 @@ npm run dev
 npm run build
 ```
 
-**Docs:** [Android (next focus)](docs/ANDROID_BUILD.md) · [Web / Stripe](docs/MONETIZATION.md) · [Supabase](docs/SUPABASE_SECURITY.md)
-
-Optional: copy `.env.example` for cloud sync. Web ships as static `dist/` (e.g. Vercel).
+Web app — static `dist/` (e.g. Vercel). Optional Gemini API key in Configuration for Canon AI generation.

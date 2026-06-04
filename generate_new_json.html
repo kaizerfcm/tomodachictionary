@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tomodachi Island JSON Generator</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { color: #a6e3a1; }
+    textarea {
+      width: 100%;
+      height: 300px;
+      background: #313244;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: monospace;
+    }
+    input[type="file"] {
+      margin: 1rem 0;
+      padding: 0.5rem;
+      background: #313244;
+      border: 1px solid #45475a;
+      color: #cdd6f4;
+      border-radius: 4px;
+    }
+    button {
+      background: #a6e3a1;
+      color: #11111b;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tomodachi Island JSON Generator</h1>
+  <p>Select your <code>tomodict-island-2026-06-02.json</code> file to generate a new version with refreshed phrases, level-up rewards, and relationship-aware interaction topics.</p>
+  
+  <input type="file" id="file-input" />
+  
+  <h2>Output JSON</h2>
+  <textarea id="result-textarea" readonly placeholder="Output will appear here..."></textarea>
+
+  <script>
+    const catchphrasesPool = [
+      "Let's do this!", "Oh my!", "No way!", "Absolutely!", "Indeed!", 
+      "Keep moving!", "Aha!", "Oh boy!", "Wowza!", "Stay cool!", 
+      "Fantastic!", "Bizarre!", "Sweet!", "Unreal!", "Right on!",
+      "Hahaha!", "Check it!", "No problem!", "Indeed!", "Oh yeah!"
+    ];
+
+    const startingSentences = [
+      "Say,", "Look,", "Listen,", "By the way,", "Actually,", 
+      "So,", "Well,", "Honestly,", "Hey,", "Excuse me,"
+    ];
+
+    const endingSentences = [
+      "my friend.", "indeed.", "for sure.", "I suppose.", "right now.",
+      "without a doubt.", "believe it.", "if you say so.", "obviously.", "no doubt."
+    ];
+
+    const beforeEatingPool = [
+      "Time to feast!", "Smells delicious!", "Down the hatch!", 
+      "Bon appetit!", "Yum yum!", "A fine meal!"
+    ];
+
+    const shoutAtSeaPool = [
+      "AHOY MATEYS!", "TO THE HORIZON!", "ISLAND AHEAD!",
+      "HELLO WORLD!", "SO MUCH WATER!", "HELP ME!"
+    ];
+
+    const happyPool = [
+      "What a wonderful day!", "I'm on top of the world!", "This is amazing!",
+      "I feel fantastic!", "Pure joy!", "Best feeling ever!"
+    ];
+
+    const sadPool = [
+      "Sigh...", "A bit down today...", "Everything is gray...",
+      "Could be better...", "Sad times...", "Oh dear..."
+    ];
+
+    const angryPool = [
+      "This is unacceptable!", "Out of my way!", "So annoying!",
+      "No more games!", "Bite me!", "Leave me alone!"
+    ];
+
+    const sleepingPool = [
+      "Zzz... dreaming...", "Snore... rest...", "Sleeping tight...",
+      "Do not disturb...", "Zzz... dreamland...", "Resting..."
+    ];
+
+    const greetingPool = [
+      "Hello!", "Greetings!", "Yo!", "Hey there!", "Nice to meet you!",
+      "How's it going?", "Good day!"
+    ];
+
+    const songs = ["Pop Song", "Rock Song", "Opera Style", "Heavy Metal", "Techno Hit", "Classical Tune", "Country Ballad", "Reggae Groove"];
+    const interiors = ["Retro Space", "Cozy Log Cabin", "Japanese Dojo", "Golden Royal Castle", "Futuristic Lab", "Cute Pastel Room", "Sunny Beachfront", "Spooky Mansion"];
+    const clothing = ["Superhero Suit", "Classic Tuxedo", "Fancy Ballgown", "Dinosaur Onesie", "Cool Leather Jacket", "Colorful Hoodie", "Vintage Armor", "Chef Apron"];
+    const hats = ["Golden Crown", "Magician Top Hat", "Space Helmet", "Panda Ears Cap", "Explorer Pith Helmet", "Pirate Tricorn", "Detective Deerstalker", "Fancy Fedora"];
+    const goods = ["Virtual Reality Headset", "Retro Handheld Console", "Toy Robot", "Miniature Drone", "Acoustic Guitar", "Skateboard", "Magnifying Glass", "Collectible Card Deck"];
+
+    const topicThemes = [
+      "their favorite flavor of tea",
+      "whether ghosts are real",
+      "how to survive a deserted island",
+      "the best way to cook an egg",
+      "what the stars are made of",
+      "their favorite childhood games",
+      "the best superpower to have",
+      "whether they prefer sunrise or sunset",
+      "how to build the ultimate blanket fort",
+      "their dream vacation destinations",
+      "the mysteries of the deep ocean",
+      "what they would do with a million gold coins",
+      "their favorite type of music to relax to",
+      "whether pineapple belongs on pizza",
+      "how to tell a good joke",
+      "the best topping for pancakes",
+      "whether time travel is possible",
+      "their favorite seasonal festival",
+      "how to paint a beautiful landscape",
+      "what makes a perfect sandwich"
+    ];
+
+    function getRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function getRandomSubset(arr, count) {
+      const shuffled = [...arr].sort(() => 0.5 - Math.random());
+      return shuffled.slice(0, count);
+    }
+
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = JSON.parse(evt.target.result);
+          const characters = data.characters || [];
+          const ids = characters.map(c => c.id);
+
+          const newCharacters = characters.map((char, index) => {
+            // Generate phrases
+            const phrases = {
+              catchphrases: getRandomSubset(catchphrasesPool, 3),
+              startingSentence: getRandomSubset(startingSentences, 3),
+              endingSentence: getRandomSubset(endingSentences, 3),
+              beforeEating: getRandomSubset(beforeEatingPool, 3),
+              shoutAtSea: getRandomSubset(shoutAtSeaPool, 3),
+              whenHappy: getRandomSubset(happyPool, 3),
+              whenSad: getRandomSubset(sadPool, 3),
+              whenAngry: getRandomSubset(angryPool, 3),
+              whileSleeping: getRandomSubset(sleepingPool, 3),
+              greeting: getRandomSubset(greetingPool, 3)
+            };
+
+            // Nickname defaults
+            const nicknameDefaults = [`Friend #${index + 1}`, `Buddy #${index + 1}`];
+
+            // Nicknames
+            const nicknames = {};
+            ids.forEach(otherId => {
+              if (otherId !== char.id) {
+                nicknames[otherId] = [`Alias ${index + 1}`];
+              }
+            });
+
+            // Level up rewards
+            const levelUpRewards = {
+              song: getRandom(songs),
+              interior: getRandom(interiors),
+              clothing: getRandom(clothing),
+              hat: getRandom(hats),
+              goods: getRandom(goods)
+            };
+
+            // Interaction topics
+            const interactionTopics = {};
+            ids.forEach(otherId => {
+              if (otherId !== char.id) {
+                const otherChar = characters.find(c => c.id === otherId);
+                const name = otherChar ? otherChar.name : "them";
+                interactionTopics[otherId] = `Discussing ${getRandom(topicThemes)} with ${name}`;
+              }
+            });
+
+            return {
+              id: char.id,
+              name: char.name,
+              phrases: phrases,
+              nicknameDefaults: nicknameDefaults,
+              nicknames: nicknames,
+              levelUpRewards: levelUpRewards,
+              interactionTopics: interactionTopics,
+              extra: char.extra || "",
+              avatar: char.avatar || "",
+              createdAt: char.createdAt || Date.now()
+            };
+          });
+
+          const output = {
+            version: 1,
+            characters: newCharacters
+          };
+
+          document.getElementById('result-textarea').value = JSON.stringify(output, null, 2);
+        } catch (err) {
+          alert('Error parsing JSON: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>

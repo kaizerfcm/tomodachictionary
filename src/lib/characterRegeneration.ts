@@ -3,7 +3,15 @@ import {
   MAX_PHRASES_PER_TYPE,
 } from '../constants';
 import type { FullCharacterGeneration, Triplet } from './gemini/types';
-import { PHRASE_TYPES, type Character, type PhraseType } from '../types';
+import { parseInteractionTopicFromAi } from './interactionTopics';
+import { formatGiftsPreview } from './livingTheDreamGifts';
+import {
+  PHRASE_TYPES,
+  type Character,
+  type InteractionTopic,
+  type PhraseType,
+  type LevelUpRewards,
+} from '../types';
 
 export type RegenerateChoice = 'current' | 'new';
 
@@ -11,6 +19,8 @@ export type RegenerateChoices = {
   phrases: Record<PhraseType, RegenerateChoice>;
   nicknameDefault: RegenerateChoice;
   outgoingByTargetId: Record<string, RegenerateChoice>;
+  levelUpRewards: RegenerateChoice;
+  interactionTopicsByTargetId: Record<string, RegenerateChoice>;
 };
 
 export function tripletToLines(triplet: Triplet): string[] {
@@ -41,10 +51,54 @@ export function defaultRegenerateChoices(
     }
   }
 
+  const interactionTopicsByTargetId: Record<string, RegenerateChoice> = {};
+  for (const target of allCharacters) {
+    if (target.id === character.id) continue;
+    const hasCurrent = Boolean(
+      character.interactionTopics?.[target.id]?.text?.trim(),
+    );
+    const hasNew = Boolean(generation.interactionTopics?.[target.name]);
+    if (hasCurrent || hasNew) {
+      interactionTopicsByTargetId[target.id] = 'current';
+    }
+  }
+
   return {
     phrases,
     nicknameDefault: 'current',
     outgoingByTargetId,
+    levelUpRewards: 'current',
+    interactionTopicsByTargetId,
+  };
+}
+
+export function allNewRegenerateChoices(
+  character: Character,
+  allCharacters: Character[],
+  generation: FullCharacterGeneration,
+): RegenerateChoices {
+  const base = defaultRegenerateChoices(character, allCharacters, generation);
+
+  const phrases = Object.fromEntries(
+    PHRASE_TYPES.map(({ key }) => [key, 'new' as RegenerateChoice]),
+  ) as Record<PhraseType, RegenerateChoice>;
+
+  const outgoingByTargetId: Record<string, RegenerateChoice> = {};
+  for (const [targetId] of Object.entries(base.outgoingByTargetId)) {
+    outgoingByTargetId[targetId] = 'new';
+  }
+
+  const interactionTopicsByTargetId: Record<string, RegenerateChoice> = {};
+  for (const [targetId] of Object.entries(base.interactionTopicsByTargetId)) {
+    interactionTopicsByTargetId[targetId] = 'new';
+  }
+
+  return {
+    phrases,
+    nicknameDefault: 'new',
+    outgoingByTargetId,
+    levelUpRewards: 'new',
+    interactionTopicsByTargetId,
   };
 }
 
@@ -57,6 +111,8 @@ export function buildRegeneratedCharacterContent(
   phrases: Record<PhraseType, string[]>;
   nicknameDefaults: string[];
   nicknames: Record<string, string[]>;
+  levelUpRewards: LevelUpRewards;
+  interactionTopics: Record<string, InteractionTopic>;
 } {
   const phrases = { ...character.phrases };
   for (const { key } of PHRASE_TYPES) {
@@ -90,7 +146,42 @@ export function buildRegeneratedCharacterContent(
     }
   }
 
-  return { phrases, nicknameDefaults, nicknames };
+  let levelUpRewards: LevelUpRewards = {
+    song: character.levelUpRewards?.song ?? '',
+    interior: character.levelUpRewards?.interior ?? '',
+    clothing: character.levelUpRewards?.clothing ?? '',
+    hat: character.levelUpRewards?.hat ?? '',
+    goods: character.levelUpRewards?.goods ?? '',
+    quirks: character.levelUpRewards?.quirks ?? '',
+  };
+  if (choices.levelUpRewards === 'new' && generation.levelUpRewards) {
+    levelUpRewards = {
+      song: generation.levelUpRewards.song || '',
+      interior: generation.levelUpRewards.interior || '',
+      clothing: generation.levelUpRewards.clothing || '',
+      hat: generation.levelUpRewards.hat || '',
+      goods: generation.levelUpRewards.goods || '',
+      quirks: generation.levelUpRewards.quirks || '',
+    };
+  }
+
+  const interactionTopics = { ...(character.interactionTopics ?? {}) };
+  for (const [targetName, topicVal] of Object.entries(
+    generation.interactionTopics || {},
+  )) {
+    const targetId = nameToId.get(targetName);
+    if (!targetId) continue;
+    if (choices.interactionTopicsByTargetId?.[targetId] !== 'new') continue;
+    const parsed = parseInteractionTopicFromAi(topicVal);
+    if (parsed) interactionTopics[targetId] = parsed;
+  }
+
+  return { phrases, nicknameDefaults, nicknames, levelUpRewards, interactionTopics };
+}
+
+export function formatGiftsCompare(gifts: LevelUpRewards | undefined): string {
+  if (!gifts) return '(empty)';
+  return formatGiftsPreview(gifts);
 }
 
 export function outgoingCompareTargets(
@@ -105,3 +196,19 @@ export function outgoingCompareTargets(
     return hasCurrent || hasNew;
   });
 }
+
+export function topicCompareTargets(
+  character: Character,
+  allCharacters: Character[],
+  generation: FullCharacterGeneration,
+): Character[] {
+  return allCharacters.filter((target) => {
+    if (target.id === character.id) return false;
+    const hasCurrent = Boolean(
+      character.interactionTopics?.[target.id]?.text?.trim(),
+    );
+    const hasNew = Boolean(generation.interactionTopics?.[target.name]);
+    return hasCurrent || hasNew;
+  });
+}
+

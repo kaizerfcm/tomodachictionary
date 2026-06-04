@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRegeneratedCharacterContent,
   defaultRegenerateChoices,
+  allNewRegenerateChoices,
   formatDialoguePreview,
   tripletToLines,
 } from './characterRegeneration';
@@ -52,6 +53,25 @@ describe('characterRegeneration', () => {
     expect(patch.phrases.greeting).toEqual(['New hi']);
     expect(patch.nicknameDefaults).toEqual(['Old default']);
     expect(patch.nicknames[target.id]).toEqual(['New nick']);
+  });
+
+  it('defaults regenerate review to all new', () => {
+    const subject = createCharacter('Futaba', 'sub-1');
+    const target = createCharacter('Ren', 'sub-2');
+    const generation = emptyGeneration();
+    generation.levelUpRewards = {
+      song: 'Happy',
+      interior: 'Teahouse Set',
+      clothing: 'Casual outfit',
+      hat: '$10',
+      goods: 'Guitar',
+      quirks: 'Smiley',
+    };
+
+    const choices = allNewRegenerateChoices(subject, [subject, target], generation);
+    expect(choices.levelUpRewards).toBe('new');
+    expect(choices.nicknameDefault).toBe('new');
+    expect(Object.values(choices.phrases).every((c) => c === 'new')).toBe(true);
   });
 
   it('extracts non-empty triplet lines', () => {

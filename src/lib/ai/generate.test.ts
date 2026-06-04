@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTripletInput } from './generate';
+import { extractFirstLine, normalizeTripletInput } from './generate';
 
 describe('normalizeTripletInput', () => {
   it('accepts a plain string', () => {
@@ -31,5 +31,19 @@ describe('normalizeTripletInput', () => {
     expect(normalizeTripletInput(null)).toEqual([]);
     expect(normalizeTripletInput(undefined)).toEqual([]);
     expect(normalizeTripletInput('   ')).toEqual([]);
+  });
+});
+
+describe('extractFirstLine', () => {
+  it('reads the first line from array-shaped phrase JSON', () => {
+    expect(
+      extractFirstLine({ catchphrases: ['It is-a me!'] }, ['line', 'catchphrases']),
+    ).toBe('It is-a me!');
+  });
+
+  it('falls back to object values when keys are missing', () => {
+    expect(extractFirstLine({ text: ['Hello there'] }, ['line'])).toBe(
+      'Hello there',
+    );
   });
 });

@@ -3,7 +3,6 @@ import type { ThemePreference } from '../lib/theme';
 interface ConfigPageProps {
   apiKey: string;
   onApiKeyChange: (key: string) => void;
-  accountEmail?: string;
   themePreference: ThemePreference;
   onThemePreferenceChange: (pref: ThemePreference) => void;
   onClearAllData: () => void;
@@ -13,7 +12,6 @@ interface ConfigPageProps {
 export function ConfigPage({
   apiKey,
   onApiKeyChange,
-  accountEmail,
   themePreference,
   onThemePreferenceChange,
   onClearAllData,
@@ -38,22 +36,8 @@ export function ConfigPage({
         <h1>Configuration</h1>
       </header>
 
-      {accountEmail && (
-        <section className="config-section">
-          <h2>Account</h2>
-          <p className="config-desc">
-            Signed in for cloud sync. Use this email at checkout if you pay to
-            remove ads on the web.
-          </p>
-          <p className="config-account-email">{accountEmail}</p>
-        </section>
-      )}
-
       <section className="config-section">
         <h2>Appearance</h2>
-        <p className="config-desc">
-          Theme follows your device when set to System. Change anytime here.
-        </p>
         <label className="config-label" htmlFor="theme-pref">
           Theme
         </label>
@@ -73,11 +57,6 @@ export function ConfigPage({
 
       <section className="config-section">
         <h2>Gemini API</h2>
-        <p className="config-desc">
-          Powers ✨ canon generation (quotes and paraphrases from source
-          material). Your key stays in this browser only. 👥 Community
-          suggestions (phrases and nicknames) are free when signed in — no key.
-        </p>
         <label className="config-label" htmlFor="gemini-key">
           API key
         </label>
@@ -87,44 +66,13 @@ export function ConfigPage({
           className="config-input"
           value={apiKey}
           onChange={(e) => onApiKeyChange(e.target.value)}
-          placeholder="AIza…"
           autoComplete="off"
         />
-        <p className="config-hint">
-          Model: Gemini 2.5 Flash. Get a key from{' '}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Google AI Studio
-          </a>
-          . Fill <strong>Extra</strong> with source work, role, tone, and
-          iconic scenes for best canon lines.
-        </p>
-        {apiKey.trim() ? (
-          <p className="config-status config-status-ok">
-            Canon AI (✨) is enabled.
-          </p>
-        ) : (
-          <p className="config-status">
-            Add a key to enable Canon AI. Quick fill and community suggestions
-            work without a key.
-          </p>
-        )}
       </section>
 
-      <section className="config-section config-section-danger">
+      <section className="config-section config-danger">
         <h2>Data</h2>
-        <p className="config-desc">
-          Permanently remove every character and all dialogue from this device
-          {accountEmail ? ' and cloud save' : ''}.
-        </p>
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={handleClearAll}
-        >
+        <button type="button" className="btn btn-danger" onClick={handleClearAll}>
           Clear all data
         </button>
       </section>

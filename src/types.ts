@@ -15,6 +15,29 @@ export const PHRASE_TYPES = [
 
 export type PhraseType = (typeof PHRASE_TYPES)[number]['key'];
 
+export interface LevelUpRewards {
+  /** Expression gift (Living the Dream). Stored as `song` for export compatibility. */
+  song: string;
+  interior: string;
+  clothing: string;
+  /** Pocket money or Kid-O-Matic / Age-O-Matic. Stored as `hat` for export compatibility. */
+  hat: string;
+  /** Prezzie / good. */
+  goods: string;
+  /** Little quirk. */
+  quirks: string;
+}
+
+/** @deprecated Use LevelUpRewards — UI label is "Gifts". */
+export type IslanderGifts = LevelUpRewards;
+
+export type InteractionTopicKind = 'person' | 'thing' | 'activity' | 'other';
+
+export interface InteractionTopic {
+  text: string;
+  kind: InteractionTopicKind;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -23,6 +46,10 @@ export interface Character {
   nicknameDefaults: string[];
   /** targetId → list of ways this character calls them. */
   nicknames: Record<string, string[]>;
+  /** Suggested level-up gifts (Living the Dream). */
+  levelUpRewards?: LevelUpRewards;
+  /** targetId → conversation topic with kind. */
+  interactionTopics?: Record<string, InteractionTopic>;
   /** Tiny JPEG data URL (see lib/avatar). */
   avatar?: string;
   /** Optional source, origin, or notes to guide AI generation. */
@@ -104,12 +131,52 @@ export function migrateCharacter(raw: LegacyCharacter | Character): Character {
           undefined
       : undefined;
 
+  const levelUpRewards: LevelUpRewards = {
+    song: String((raw as any).levelUpRewards?.song ?? '').trim(),
+    interior: String((raw as any).levelUpRewards?.interior ?? '').trim(),
+    clothing: String((raw as any).levelUpRewards?.clothing ?? '').trim(),
+    hat: String((raw as any).levelUpRewards?.hat ?? '').trim(),
+    goods: String((raw as any).levelUpRewards?.goods ?? '').trim(),
+    quirks: String((raw as any).levelUpRewards?.quirks ?? '').trim(),
+  };
+
+  const interactionTopics: Record<string, InteractionTopic> = {};
+  const srcTopics = (raw as any).interactionTopics ?? {};
+  for (const [targetId, val] of Object.entries(srcTopics)) {
+    if (typeof val === 'string') {
+      const text = val.trim();
+      if (text) interactionTopics[targetId] = { text, kind: 'other' };
+      continue;
+    }
+    if (val && typeof val === 'object') {
+      const obj = val as Record<string, unknown>;
+      const text =
+        typeof obj.text === 'string'
+          ? obj.text.trim()
+          : typeof obj.topic === 'string'
+            ? obj.topic.trim()
+            : '';
+      if (!text) continue;
+      const kindRaw = obj.kind;
+      const kind =
+        kindRaw === 'person' ||
+        kindRaw === 'thing' ||
+        kindRaw === 'activity' ||
+        kindRaw === 'other'
+          ? kindRaw
+          : 'other';
+      interactionTopics[targetId] = { text, kind };
+    }
+  }
+
   return {
     id: raw.id,
     name: raw.name,
     phrases,
     nicknameDefaults,
     nicknames,
+    levelUpRewards,
+    interactionTopics,
     avatar,
     extra,
     createdAt,
@@ -128,6 +195,15 @@ export function createCharacter(
     phrases: emptyPhrases(),
     nicknameDefaults: [],
     nicknames: {},
+    levelUpRewards: {
+      song: '',
+      interior: '',
+      clothing: '',
+      hat: '',
+      goods: '',
+      quirks: '',
+    },
+    interactionTopics: {},
     extra: trimmedExtra
       ? trimmedExtra.slice(0, MAX_CHARACTER_EXTRA_LENGTH)
       : undefined,

@@ -13,6 +13,15 @@ describe('migrateCharacter', () => {
     expect(c.nicknameDefaults).toEqual(['pal']);
     expect(c.nicknames.t2).toEqual(['buddy']);
     expect(c.createdAt).toBe(0);
+    expect(c.levelUpRewards).toEqual({
+      song: '',
+      interior: '',
+      clothing: '',
+      hat: '',
+      goods: '',
+      quirks: '',
+    });
+    expect(c.interactionTopics).toEqual({});
   });
 
   it('keeps avatar data URL', () => {

@@ -1,20 +1,25 @@
 import { MISSING_NICKNAMES_CHUNK_SIZE } from '../../constants';
-import type { Character } from '../../types';
+import type { Character, InteractionTopic, LevelUpRewards } from '../../types';
 import { PHRASE_TYPES, type PhraseType } from '../../types';
 import {
   buildFullCharacterNicknamesPrompt,
   buildFullCharacterPhrasesPrompt,
   buildMissingIslandNicknamesPrompt,
+  buildLevelUpRewardsPrompt,
+  buildInteractionTopicPrompt,
+  buildMissingInteractionTopicsPrompt,
 } from '../gemini/prompts';
 import type { GeneratedMissingNicknames } from '../gemini/types';
 import {
   chunkMissingNicknamePairs,
   type MissingNicknamePairs,
 } from '../missingNicknames';
+import { normalizeGifts } from '../livingTheDreamGifts';
+import { parseInteractionTopicFromAi } from '../interactionTopics';
 import {
-  applyShortTextLimitsToGeneration,
   clampOutgoingNickname,
   clampPhraseForType,
+  applyShortTextLimitsToGeneration,
 } from '../textLimits';
 import type {
   FullCharacterGeneration,
@@ -22,9 +27,12 @@ import type {
   GeneratedPhrases,
   Triplet,
 } from '../gemini/types';
-import { callGemini } from './callModel';
+import { callGemini, type ModelCallOptions } from './callModel';
 import { AiError } from './errors';
+import { parseModelJson } from './parseModelJson';
 import { AI_TOKENS } from './tokenLimits';
+
+export type GenerateCallOptions = Pick<ModelCallOptions, 'signal'>;
 
 const GENERIC_NICKNAME =
   /^(pal|buddy|friend|man|dude|bro|chief|sport|kid|mate|homie|hey|you)$/i;
@@ -33,22 +41,41 @@ function isGenericNickname(value: string): boolean {
   return GENERIC_NICKNAME.test(value.trim());
 }
 
-function parseJson<T>(raw: string): T {
-  const trimmed = raw.trim();
-  // Using `{3}` to avoid markdown parser issues with triple backticks
-  const fence = trimmed.match(/`{3}(?:json)?\s*([\s\S]*?)`{3}/);
-  const jsonStr = fence ? fence[1].trim() : trimmed;
-  try {
-    return JSON.parse(jsonStr) as T;
-  } catch (e) {
-    const hint =
-      jsonStr.length > 0 && !jsonStr.endsWith('}')
-        ? ' Response may have been cut off — try Fill missing again.'
-        : '';
-    throw new AiError(
-      `Invalid JSON from model${hint} ${e instanceof Error ? e.message : ''}`.trim(),
-    );
+function parseLevelUpRewards(
+  raw: Record<string, unknown> | undefined,
+): LevelUpRewards {
+  return normalizeGifts({
+    song: String(raw?.song ?? raw?.expression ?? '').trim(),
+    interior: String(raw?.interior ?? '').trim(),
+    clothing: String(raw?.clothing ?? '').trim(),
+    hat: String(raw?.hat ?? raw?.pocketMoney ?? '').trim(),
+    goods: String(raw?.goods ?? raw?.prezzie ?? '').trim(),
+    quirks: String(raw?.quirks ?? raw?.quirk ?? '').trim(),
+  });
+}
+
+function parseInteractionTopicsRecord(
+  raw: Record<string, unknown> | undefined,
+): Record<string, InteractionTopic> {
+  const out: Record<string, InteractionTopic> = {};
+  if (!raw) return out;
+  for (const [name, val] of Object.entries(raw)) {
+    const topic = parseInteractionTopicFromAi(val);
+    if (topic) out[name] = topic;
   }
+  return out;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new AiError('Generation cancelled');
+}
+
+async function callGeminiJson<T>(
+  apiKey: string,
+  options: ModelCallOptions,
+): Promise<T> {
+  const { text, finishReason } = await callGemini(apiKey, options);
+  return parseModelJson<T>(text, { finishReason });
 }
 
 /** Coerce model output into a string list (handles strings, short arrays, wrapped objects). */
@@ -99,12 +126,6 @@ export function normalizeTripletInput(value: unknown): string[] {
 
   const asString = String(value).trim();
   return asString ? [asString] : [];
-}
-
-function assertLine(raw: Record<string, unknown>, key: string): string {
-  const line = String(raw[key] ?? '').trim();
-  if (!line) throw new AiError(`Empty ${key} in response`);
-  return line;
 }
 
 function arrayToTriplet(lines: string[]): Triplet {
@@ -163,17 +184,25 @@ async function generateCharacterPhrases(
   apiKey: string,
   name: string,
   extra?: string,
-): Promise<GeneratedPhrases> {
-  const raw = parseJson<{ phrases: Record<string, unknown> }>(
-    await callGemini(apiKey, {
-      prompt: buildFullCharacterPhrasesPrompt(name, extra),
-      maxOutputTokens: AI_TOKENS.fullCharacterPhrases,
-    }),
-  );
+  options?: GenerateCallOptions,
+): Promise<{ phrases: GeneratedPhrases; levelUpRewards: LevelUpRewards }> {
+  throwIfAborted(options?.signal);
+  const raw = await callGeminiJson<{
+    phrases: Record<string, unknown>;
+    levelUpRewards?: Record<string, unknown>;
+  }>(apiKey, {
+    prompt: buildFullCharacterPhrasesPrompt(name, extra),
+    maxOutputTokens: AI_TOKENS.fullCharacterPhrases,
+    signal: options?.signal,
+  });
   if (!raw.phrases || typeof raw.phrases !== 'object') {
     throw new AiError('Missing phrases in response');
   }
-  return parsePhrasesBatch(raw.phrases);
+  const phrases = parsePhrasesBatch(raw.phrases);
+
+  const levelUpRewards = parseLevelUpRewards(raw.levelUpRewards);
+
+  return { phrases, levelUpRewards };
 }
 
 async function generateCharacterOutgoingNicknames(
@@ -181,7 +210,11 @@ async function generateCharacterOutgoingNicknames(
   name: string,
   characters: Character[],
   extra?: string,
-): Promise<GeneratedOutgoingNicknames> {
+  options?: GenerateCallOptions,
+): Promise<{
+  outgoing: GeneratedOutgoingNicknames;
+  interactionTopics: Record<string, InteractionTopic>;
+}> {
   const chunks: Character[][] = [];
   for (let i = 0; i < characters.length; i += MISSING_NICKNAMES_CHUNK_SIZE) {
     chunks.push(characters.slice(i, i + MISSING_NICKNAMES_CHUNK_SIZE));
@@ -192,26 +225,37 @@ async function generateCharacterOutgoingNicknames(
 
   let nicknameDefault = arrayToTriplet([]);
   const byTargetName: Record<string, Triplet> = {};
+  const interactionTopics: Record<string, InteractionTopic> = {};
 
   for (let i = 0; i < chunks.length; i += 1) {
+    throwIfAborted(options?.signal);
     const chunk = chunks[i];
     const includeDefaults = i === 0;
-    const raw = parseJson<Record<string, unknown>>(
-      await callGemini(apiKey, {
-        prompt: buildFullCharacterNicknamesPrompt(name, chunk, extra, {
-          includeDefaults,
-        }),
-        maxOutputTokens: AI_TOKENS.fullCharacterNicknames,
+    const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+      prompt: buildFullCharacterNicknamesPrompt(name, chunk, extra, {
+        includeDefaults,
       }),
-    );
+      maxOutputTokens: AI_TOKENS.fullCharacterNicknames,
+      signal: options?.signal,
+    });
     const part = parseOutgoingBatch(raw, { includeDefaults });
     if (includeDefaults && part.nicknameDefault[0]) {
       nicknameDefault = part.nicknameDefault;
     }
     Object.assign(byTargetName, part.byTargetName);
+
+    const topicsRaw = raw.interactionTopics;
+    Object.assign(
+      interactionTopics,
+      parseInteractionTopicsRecord(
+        topicsRaw && typeof topicsRaw === 'object'
+          ? (topicsRaw as Record<string, unknown>)
+          : undefined,
+      ),
+    );
   }
 
-  return { nicknameDefault, byTargetName };
+  return { outgoing: { nicknameDefault, byTargetName }, interactionTopics };
 }
 
 export async function generateFullCharacter(
@@ -219,33 +263,61 @@ export async function generateFullCharacter(
   name: string,
   characters: Character[],
   extra?: string,
+  options?: GenerateCallOptions,
 ): Promise<FullCharacterGeneration> {
-  const phrases = await generateCharacterPhrases(apiKey, name, extra);
+  const phrasesResult = await generateCharacterPhrases(
+    apiKey,
+    name,
+    extra,
+    options,
+  );
 
-  let outgoing = await generateCharacterOutgoingNicknames(
+  let nicknamesResult = await generateCharacterOutgoingNicknames(
     apiKey,
     name,
     characters,
     extra,
+    options,
   );
-  if (outgoingHasGenericNicknames(outgoing)) {
+  if (outgoingHasGenericNicknames(nicknamesResult.outgoing)) {
+    throwIfAborted(options?.signal);
     const retry = await generateCharacterOutgoingNicknames(
       apiKey,
       name,
       characters,
       extra,
+      options,
     );
-    if (!outgoingHasGenericNicknames(retry)) {
-      outgoing = retry;
+    if (!outgoingHasGenericNicknames(retry.outgoing)) {
+      nicknamesResult = retry;
     }
   }
 
   const generation: FullCharacterGeneration = {
-    phrases,
-    outgoing,
+    phrases: phrasesResult.phrases,
+    levelUpRewards: phrasesResult.levelUpRewards,
+    outgoing: nicknamesResult.outgoing,
+    interactionTopics: nicknamesResult.interactionTopics,
     incoming: { bySpeakerName: {} },
   };
   return applyShortTextLimitsToGeneration(generation);
+}
+
+export function extractFirstLine(
+  raw: Record<string, unknown>,
+  keys: string[],
+): string {
+  for (const key of keys) {
+    const val = raw[key];
+    if (val == null) continue;
+    const items = normalizeTripletInput(val);
+    if (items[0]?.trim()) return items[0].trim();
+  }
+  for (const val of Object.values(raw)) {
+    const items = normalizeTripletInput(val);
+    if (items[0]?.trim()) return items[0].trim();
+  }
+  return '';
 }
 
 export async function generateOnePhrase(
@@ -253,13 +325,22 @@ export async function generateOnePhrase(
   prompt: string,
   phraseType?: PhraseType,
 ): Promise<string> {
-  const raw = parseJson<Record<string, unknown>>(
-    await callGemini(apiKey, {
-      prompt,
-      maxOutputTokens: AI_TOKENS.singleLine,
-    }),
-  );
-  const line = assertLine(raw, 'line');
+  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    prompt,
+    maxOutputTokens: AI_TOKENS.singleLine,
+  });
+
+  const keys = [
+    'line',
+    ...(phraseType ? [phraseType] : []),
+    'text',
+    'phrase',
+    'value',
+    'dialogue',
+    'content',
+  ];
+  const line = raw && typeof raw === 'object' ? extractFirstLine(raw, keys) : '';
+  if (!line) throw new AiError('Empty line in response');
   return phraseType ? clampPhraseForType(phraseType, line) : line;
 }
 
@@ -268,13 +349,15 @@ export async function generateOneNickname(
   prompt: string,
   clampToShort = false,
 ): Promise<string> {
-  const raw = parseJson<Record<string, unknown>>(
-    await callGemini(apiKey, {
-      prompt,
-      maxOutputTokens: AI_TOKENS.singleLine,
-    }),
-  );
-  const nick = assertLine(raw, 'nickname');
+  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    prompt,
+    maxOutputTokens: AI_TOKENS.singleLine,
+  });
+
+  const keys = ['nickname', 'line', 'text', 'value', 'name', 'nick'];
+  const nick =
+    raw && typeof raw === 'object' ? extractFirstLine(raw, keys) : '';
+  if (!nick) throw new AiError('Empty nickname in response');
   return clampToShort ? clampOutgoingNickname(nick) : nick;
 }
 
@@ -296,12 +379,10 @@ export async function generateMissingIslandNicknames(
   apiKey: string,
   prompt: string,
 ): Promise<GeneratedMissingNicknames> {
-  const raw = parseJson<Record<string, unknown>>(
-    await callGemini(apiKey, {
-      prompt,
-      maxOutputTokens: AI_TOKENS.missingNicknames,
-    }),
-  );
+  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    prompt,
+    maxOutputTokens: AI_TOKENS.missingNicknames,
+  });
   return {
     outgoing: parseNicknameStringMap(raw.outgoing, true),
     incoming: parseNicknameStringMap(raw.incoming, false),
@@ -334,4 +415,51 @@ export async function generateMissingIslandNicknamesBatched(
   }
 
   return merged;
+}
+
+export async function generateLevelUpRewards(
+  apiKey: string,
+  character: Character,
+): Promise<LevelUpRewards> {
+  const prompt = buildLevelUpRewardsPrompt(character);
+  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    prompt,
+    maxOutputTokens: AI_TOKENS.singleLine,
+  });
+  return parseLevelUpRewards(raw);
+}
+
+export async function generateInteractionTopic(
+  apiKey: string,
+  subject: Character,
+  target: Character,
+): Promise<InteractionTopic> {
+  const prompt = buildInteractionTopicPrompt(subject, target);
+  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    prompt,
+    maxOutputTokens: AI_TOKENS.singleLine,
+  });
+  const topic = parseInteractionTopicFromAi(raw);
+  if (!topic?.text) throw new AiError('Empty topic in response');
+  return topic;
+}
+
+export async function generateMissingInteractionTopics(
+  apiKey: string,
+  subject: Character,
+  targets: Character[],
+): Promise<Record<string, InteractionTopic>> {
+  if (targets.length === 0) return {};
+  const prompt = buildMissingInteractionTopicsPrompt(subject, targets);
+  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    prompt,
+    maxOutputTokens: AI_TOKENS.missingNicknames,
+  });
+  const src =
+    raw.topics && typeof raw.topics === 'object'
+      ? (raw.topics as Record<string, unknown>)
+      : raw;
+  return parseInteractionTopicsRecord(
+    src && typeof src === 'object' ? src : undefined,
+  );
 }

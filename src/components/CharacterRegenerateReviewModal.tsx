@@ -1,15 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { PHRASE_TYPES, type Character } from '../types';
 import type { FullCharacterGeneration } from '../lib/gemini/types';
 import {
   buildRegeneratedCharacterContent,
+  allNewRegenerateChoices,
   defaultRegenerateChoices,
   formatDialoguePreview,
+  formatGiftsCompare,
   outgoingCompareTargets,
+  topicCompareTargets,
   tripletToLines,
   type RegenerateChoice,
   type RegenerateChoices,
 } from '../lib/characterRegeneration';
+import { formatTopicPreview, parseInteractionTopicFromAi } from '../lib/interactionTopics';
 import { OptionCompare } from './OptionTriplet';
 import { Modal } from './Modal';
 
@@ -23,6 +27,8 @@ interface CharacterRegenerateReviewModalProps {
     phrases: Character['phrases'];
     nicknameDefaults: string[];
     nicknames: Record<string, string[]>;
+    levelUpRewards?: Character['levelUpRewards'];
+    interactionTopics?: Character['interactionTopics'];
   }) => void;
   onClose: () => void;
 }
@@ -37,11 +43,28 @@ export function CharacterRegenerateReviewModal({
   onClose,
 }: CharacterRegenerateReviewModalProps) {
   const [choices, setChoices] = useState<RegenerateChoices>(() =>
-    defaultRegenerateChoices(character, allCharacters, generation),
+    allNewRegenerateChoices(character, allCharacters, generation),
   );
+
+  useEffect(() => {
+    setChoices(allNewRegenerateChoices(character, allCharacters, generation));
+  }, [allCharacters, character, generation]);
+
+  const applyAllNew = () => {
+    setChoices(allNewRegenerateChoices(character, allCharacters, generation));
+  };
+
+  const applyAllCurrent = () => {
+    setChoices(defaultRegenerateChoices(character, allCharacters, generation));
+  };
 
   const outgoingTargets = useMemo(
     () => outgoingCompareTargets(character, allCharacters, generation),
+    [allCharacters, character, generation],
+  );
+
+  const topicTargets = useMemo(
+    () => topicCompareTargets(character, allCharacters, generation),
     [allCharacters, character, generation],
   );
 
@@ -55,7 +78,10 @@ export function CharacterRegenerateReviewModal({
     onConfirm(patch);
   };
 
-  const setPhraseChoice = (key: (typeof PHRASE_TYPES)[number]['key'], value: RegenerateChoice) => {
+  const setPhraseChoice = (
+    key: (typeof PHRASE_TYPES)[number]['key'],
+    value: RegenerateChoice,
+  ) => {
     setChoices((prev) => ({
       ...prev,
       phrases: { ...prev.phrases, [key]: value },
@@ -66,6 +92,16 @@ export function CharacterRegenerateReviewModal({
     setChoices((prev) => ({
       ...prev,
       outgoingByTargetId: { ...prev.outgoingByTargetId, [targetId]: value },
+    }));
+  };
+
+  const setTopicChoice = (targetId: string, value: RegenerateChoice) => {
+    setChoices((prev) => ({
+      ...prev,
+      interactionTopicsByTargetId: {
+        ...prev.interactionTopicsByTargetId,
+        [targetId]: value,
+      },
     }));
   };
 
@@ -99,9 +135,26 @@ export function CharacterRegenerateReviewModal({
       }
     >
       <p className="modal-intro">
-        Choose current or new for each section. Only categories you set to New
-        will change on save — everything else stays as it is.
+        Choose current or new for each section.
       </p>
+
+      <div className="regen-choice-toolbar">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={applyAllNew}
+        >
+          Select all new
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={applyAllCurrent}
+        >
+          Select all current
+        </button>
+      </div>
+
       <section className="review-section">
         <h3>Dialogue phrases</h3>
         {PHRASE_TYPES.map(({ key, label }) => (
@@ -116,6 +169,41 @@ export function CharacterRegenerateReviewModal({
           />
         ))}
       </section>
+
+      <section className="review-section">
+        <h3>Gifts & Conversation Topics</h3>
+        {generation.levelUpRewards && (
+          <OptionCompare
+            label="Gifts"
+            name="gifts"
+            currentText={formatGiftsCompare(character.levelUpRewards)}
+            newText={formatGiftsCompare(generation.levelUpRewards)}
+            choice={choices.levelUpRewards}
+            onChoice={(value) =>
+              setChoices((prev) => ({ ...prev, levelUpRewards: value }))
+            }
+          />
+        )}
+        {topicTargets.map((target) => {
+          const newTopic = parseInteractionTopicFromAi(
+            generation.interactionTopics?.[target.name],
+          );
+          return (
+            <OptionCompare
+              key={target.id}
+              label={`Topic: ${target.name}`}
+              name={`topic-${target.id}`}
+              currentText={formatTopicPreview(
+                character.interactionTopics?.[target.id],
+              )}
+              newText={formatTopicPreview(newTopic ?? undefined)}
+              choice={choices.interactionTopicsByTargetId[target.id] ?? 'current'}
+              onChoice={(value) => setTopicChoice(target.id, value)}
+            />
+          );
+        })}
+      </section>
+
       <section className="review-section">
         <h3>Calls others</h3>
         <OptionCompare

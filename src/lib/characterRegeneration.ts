@@ -5,6 +5,7 @@ import {
 import type { FullCharacterGeneration, Triplet } from './gemini/types';
 import { parseInteractionTopicFromAi } from './interactionTopics';
 import { formatGiftsPreview } from './livingTheDreamGifts';
+import { dedupeNicknames, sanitizeCharacterNicknames } from './nicknames';
 import {
   PHRASE_TYPES,
   type Character,
@@ -53,15 +54,12 @@ export function nicknamesFromOutgoing(
   for (const [targetName, triplet] of Object.entries(outgoing.byTargetName)) {
     const targetId = nameToId.get(targetName);
     if (!targetId) continue;
-    nicknames[targetId] = tripletToLines(triplet).slice(0, MAX_NICKNAME_OPTIONS);
+    nicknames[targetId] = dedupeNicknames(tripletToLines(triplet));
   }
-  return {
-    nicknameDefaults: tripletToLines(outgoing.nicknameDefault).slice(
-      0,
-      MAX_NICKNAME_OPTIONS,
-    ),
+  return sanitizeCharacterNicknames({
+    nicknameDefaults: tripletToLines(outgoing.nicknameDefault),
     nicknames,
-  };
+  });
 }
 
 export function formatDialoguePreview(lines: string[]): string {

@@ -259,7 +259,30 @@ export function NicknamePanel({
         />
       )}
 
-      <div className="nickname-compact-block">
+      <ul className="nickname-pair-grid">
+        {visibleIslanders.length === 0 ? (
+          <li className="empty-hint">No matches.</li>
+        ) : (
+          visibleIslanders.slice(0, MAX_VISIBLE).map((other) => (
+            <IslanderNicknameCard
+              key={other.id}
+              subject={subject}
+              other={other}
+              outgoingValues={subject.nicknames[other.id] ?? []}
+              incomingValues={other.nicknames[subject.id] ?? []}
+              onOpenCharacter={onOpenCharacter}
+              onUpdateOutgoingAt={(i, v) => onUpdateOutgoingAt(other.id, i, v)}
+              onRemoveOutgoingAt={(i) => onRemoveOutgoing(other.id, i)}
+              onAddOutgoing={() => onAddOutgoing(other.id)}
+              onUpdateIncomingAt={(i, v) => onUpdateIncomingAt(other.id, i, v)}
+              onRemoveIncomingAt={(i) => onRemoveIncoming(other.id, i)}
+              onAddIncoming={() => onAddIncoming(other.id)}
+            />
+          ))
+        )}
+      </ul>
+
+      <div className="nickname-compact-block nickname-defaults-block">
         <div className="nickname-compact-head">
           <span className="nickname-compact-label">Defaults (new islanders)</span>
           <span className="nickname-compact-actions">
@@ -299,29 +322,6 @@ export function NicknamePanel({
           +
         </button>
       </div>
-
-      <ul className="nickname-pair-grid">
-        {visibleIslanders.length === 0 ? (
-          <li className="empty-hint">No matches.</li>
-        ) : (
-          visibleIslanders.slice(0, MAX_VISIBLE).map((other) => (
-            <IslanderNicknameCard
-              key={other.id}
-              subject={subject}
-              other={other}
-              outgoingValues={subject.nicknames[other.id] ?? []}
-              incomingValues={other.nicknames[subject.id] ?? []}
-              onOpenCharacter={onOpenCharacter}
-              onUpdateOutgoingAt={(i, v) => onUpdateOutgoingAt(other.id, i, v)}
-              onRemoveOutgoingAt={(i) => onRemoveOutgoing(other.id, i)}
-              onAddOutgoing={() => onAddOutgoing(other.id)}
-              onUpdateIncomingAt={(i, v) => onUpdateIncomingAt(other.id, i, v)}
-              onRemoveIncomingAt={(i) => onRemoveIncoming(other.id, i)}
-              onAddIncoming={() => onAddIncoming(other.id)}
-            />
-          ))
-        )}
-      </ul>
     </section>
   );
 }

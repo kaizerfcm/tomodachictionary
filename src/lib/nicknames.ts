@@ -67,3 +67,19 @@ export function dedupeNicknames(list: string[]): string[] {
   }
   return out.slice(0, MAX_NICKNAME_OPTIONS);
 }
+
+export function sanitizeCharacterNicknames(character: {
+  nicknameDefaults: string[];
+  nicknames: Record<string, string[]>;
+}): {
+  nicknameDefaults: string[];
+  nicknames: Record<string, string[]>;
+} {
+  const nicknameDefaults = dedupeNicknames(character.nicknameDefaults);
+  const nicknames: Record<string, string[]> = {};
+  for (const [targetId, list] of Object.entries(character.nicknames)) {
+    const deduped = dedupeNicknames(list);
+    if (deduped.length) nicknames[targetId] = deduped;
+  }
+  return { nicknameDefaults, nicknames };
+}

@@ -11,7 +11,7 @@ import {
   MAX_NICKNAME_OPTIONS,
   MAX_PHRASES_PER_TYPE,
 } from '../constants';
-import { dedupeNicknames } from '../lib/nicknames';
+import { dedupeNicknames, sanitizeCharacterNicknames } from '../lib/nicknames';
 import {
   clampOutgoingNickname,
   clampPhraseForType,
@@ -336,18 +336,21 @@ export function useDictionary() {
       },
     ) => {
       updateCharacters((prev) =>
-        prev.map((c) =>
-          c.id === charId
-            ? {
-                ...c,
-                phrases: patch.phrases,
-                nicknameDefaults: patch.nicknameDefaults,
-                nicknames: patch.nicknames,
-                levelUpRewards: patch.levelUpRewards ?? c.levelUpRewards,
-                interactionTopics: patch.interactionTopics ?? c.interactionTopics,
-              }
-            : c,
-        ),
+        prev.map((c) => {
+          if (c.id !== charId) return c;
+          const { nicknameDefaults, nicknames } = sanitizeCharacterNicknames({
+            nicknameDefaults: patch.nicknameDefaults,
+            nicknames: patch.nicknames,
+          });
+          return {
+            ...c,
+            phrases: patch.phrases,
+            nicknameDefaults,
+            nicknames,
+            levelUpRewards: patch.levelUpRewards ?? c.levelUpRewards,
+            interactionTopics: patch.interactionTopics ?? c.interactionTopics,
+          };
+        }),
       );
     },
     [updateCharacters],
@@ -497,7 +500,7 @@ export function useDictionary() {
           const nicknames = { ...c.nicknames };
           const list = [...(nicknames[targetId] ?? [])];
           list[index] = value;
-          nicknames[targetId] = list;
+          nicknames[targetId] = dedupeNicknames(list);
           return { ...c, nicknames };
         }),
       );
@@ -513,7 +516,7 @@ export function useDictionary() {
           const list = c.nicknames[targetId] ?? [];
           if (list.length >= MAX_NICKNAME_OPTIONS) return c;
           const nicknames = { ...c.nicknames };
-          nicknames[targetId] = [...list, value];
+          nicknames[targetId] = dedupeNicknames([...list, value]);
           return { ...c, nicknames };
         }),
       );
@@ -542,7 +545,10 @@ export function useDictionary() {
           if (c.id !== charId) return c;
           const nicknameDefaults = [...c.nicknameDefaults];
           nicknameDefaults[index] = clampOutgoingNickname(value);
-          return { ...c, nicknameDefaults };
+          return {
+            ...c,
+            nicknameDefaults: dedupeNicknames(nicknameDefaults),
+          };
         }),
       );
     },
@@ -557,10 +563,10 @@ export function useDictionary() {
           if (c.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return c;
           return {
             ...c,
-            nicknameDefaults: [
+            nicknameDefaults: dedupeNicknames([
               ...c.nicknameDefaults,
               clampOutgoingNickname(value),
-            ],
+            ]),
           };
         }),
       );

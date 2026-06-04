@@ -1,4 +1,5 @@
 import { MAX_CHARACTER_EXTRA_LENGTH, MAX_PHRASES_PER_TYPE } from './constants';
+import { sanitizeCharacterNicknames } from './lib/nicknames';
 
 export const PHRASE_TYPES = [
   { key: 'catchphrases', label: 'Catchphrases' },
@@ -173,8 +174,7 @@ export function migrateCharacter(raw: LegacyCharacter | Character): Character {
     id: raw.id,
     name: raw.name,
     phrases,
-    nicknameDefaults,
-    nicknames,
+    ...sanitizeCharacterNicknames({ nicknameDefaults, nicknames }),
     levelUpRewards,
     interactionTopics,
     avatar,

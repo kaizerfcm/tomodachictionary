@@ -1185,6 +1185,11 @@ img.avatar {
   margin: 0 0 0.5rem;
 }
 
+.nickname-defaults-block {
+  margin-top: 0.85rem;
+  margin-bottom: 0;
+}
+
 .nickname-compact-block {
   margin-bottom: 0.75rem;
 }

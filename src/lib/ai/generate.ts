@@ -194,6 +194,7 @@ async function generateCharacterPhrases(
     prompt: buildFullCharacterPhrasesPrompt(name, extra),
     maxOutputTokens: AI_TOKENS.fullCharacterPhrases,
     signal: options?.signal,
+    operation: 'full-character-phrases',
   });
   if (!raw.phrases || typeof raw.phrases !== 'object') {
     throw new AiError('Missing phrases in response');
@@ -237,6 +238,7 @@ async function generateCharacterOutgoingNicknames(
       }),
       maxOutputTokens: AI_TOKENS.fullCharacterNicknames,
       signal: options?.signal,
+      operation: 'full-character-nicknames',
     });
     const part = parseOutgoingBatch(raw, { includeDefaults });
     if (includeDefaults && part.nicknameDefault[0]) {
@@ -328,6 +330,7 @@ export async function generateOnePhrase(
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
+    operation: 'one-phrase',
   });
 
   const keys = [
@@ -352,6 +355,7 @@ export async function generateOneNickname(
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
+    operation: 'one-nickname',
   });
 
   const keys = ['nickname', 'line', 'text', 'value', 'name', 'nick'];
@@ -382,6 +386,7 @@ export async function generateMissingIslandNicknames(
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
     maxOutputTokens: AI_TOKENS.missingNicknames,
+    operation: 'missing-island-nicknames',
   });
   return {
     outgoing: parseNicknameStringMap(raw.outgoing, true),
@@ -425,6 +430,7 @@ export async function generateLevelUpRewards(
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
+    operation: 'level-up-rewards',
   });
   return parseLevelUpRewards(raw);
 }
@@ -438,6 +444,7 @@ export async function generateInteractionTopic(
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
+    operation: 'interaction-topic',
   });
   const topic = parseInteractionTopicFromAi(raw);
   if (!topic?.text) throw new AiError('Empty topic in response');
@@ -454,6 +461,7 @@ export async function generateMissingInteractionTopics(
   const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
     prompt,
     maxOutputTokens: AI_TOKENS.missingNicknames,
+    operation: 'missing-interaction-topics',
   });
   const src =
     raw.topics && typeof raw.topics === 'object'

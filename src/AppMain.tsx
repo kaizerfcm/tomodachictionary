@@ -31,6 +31,7 @@ import {
   IslandRegenerateOptionsModal,
   type IslandRegenMode,
 } from './components/IslandRegenerateOptionsModal';
+import { AiLogsModal } from './components/AiLogsModal';
 import { generateIslandBatchRegeneration } from './lib/ai/islandBatchRegen';
 import { AiError } from './lib/ai/errors';
 import {
@@ -110,6 +111,7 @@ export function AppMain() {
   );
   const [islandRegenModalOpen, setIslandRegenModalOpen] = useState(false);
   const [islandRegenOptionsOpen, setIslandRegenOptionsOpen] = useState(false);
+  const [aiLogsOpen, setAiLogsOpen] = useState(false);
   const islandRegenAbortRef = useRef<AbortController | null>(null);
   const islandRegenRunIdRef = useRef(0);
 
@@ -364,8 +366,9 @@ export function AppMain() {
           mode,
           phase: 'running',
           index: 0,
-          total: targets.length,
-          currentName: 'All islanders',
+          total: 1,
+          islanderCount: targets.length,
+          currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
           succeeded: [],
           failed: [],
         });
@@ -381,8 +384,9 @@ export function AppMain() {
             mode,
             phase: 'stopped',
             index: 0,
-            total: targets.length,
-            currentName: 'All islanders',
+            total: 1,
+            islanderCount: targets.length,
+            currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
             succeeded: [],
             failed: [],
           });
@@ -390,27 +394,50 @@ export function AppMain() {
         }
 
         if (result.ok) {
-          replaceActiveIsland({ version: 1, characters: result.value });
-          pushProgress({
-            mode,
-            phase: 'done',
-            index: targets.length - 1,
-            total: targets.length,
-            currentName: 'All islanders',
-            succeeded: targets.map((c) => c.name),
-            failed: [],
-          });
-          setAiNotice({
-            kind: 'success',
-            message: `Regenerated ${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-          });
+          try {
+            replaceActiveIsland({ version: 1, characters: result.value });
+            pushProgress({
+              mode,
+              phase: 'done',
+              index: 0,
+              total: 1,
+              islanderCount: targets.length,
+              currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
+              succeeded: targets.map((c) => c.name),
+              failed: [],
+            });
+            setAiNotice({
+              kind: 'success',
+              message: `Regenerated ${targets.length} islander${targets.length === 1 ? '' : 's'}`,
+            });
+          } catch (e) {
+            const msg =
+              e instanceof Error ? e.message : 'Failed to save regenerated island';
+            pushProgress({
+              mode,
+              phase: 'done',
+              index: 0,
+              total: 1,
+              islanderCount: targets.length,
+              currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
+              succeeded: [],
+              failed: [
+                {
+                  characterId: ISLAND_REGEN_BATCH_FAILURE_ID,
+                  characterName: 'All islanders (batch)',
+                  error: msg,
+                },
+              ],
+            });
+          }
         } else {
           pushProgress({
             mode,
             phase: result.error === 'Generation cancelled' ? 'stopped' : 'done',
             index: 0,
-            total: targets.length,
-            currentName: 'All islanders',
+            total: 1,
+            islanderCount: targets.length,
+            currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
             succeeded: [],
             failed:
               result.error === 'Generation cancelled'
@@ -590,6 +617,13 @@ export function AppMain() {
     if (!islandRegen || islandRegenModalOpen) return null;
     const processed = islandRegen.succeeded.length + islandRegen.failed.length;
     if (islandRegen.phase === 'running') {
+      if (islandRegen.mode === 'batch') {
+        const n = islandRegen.islanderCount ?? processed;
+        return {
+          label: `Island batch regeneration in progress (1 request · ${n} islander${n === 1 ? '' : 's'})…`,
+          onShow: () => setIslandRegenModalOpen(true),
+        };
+      }
       return {
         label: `Island regeneration in progress (${processed}/${islandRegen.total})…`,
         onShow: () => setIslandRegenModalOpen(true),
@@ -837,6 +871,7 @@ export function AppMain() {
         onAdd={() => setShowNewCharModal(true)}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
+        onOpenLogs={() => setAiLogsOpen(true)}
         onOpenConfig={() => openView('config')}
         onOpenTos={() => openView('tos')}
         hasApiKey={hasApiKey}
@@ -996,6 +1031,8 @@ export function AppMain() {
           onHide={handleHideIslandRegenerationModal}
         />
       )}
+
+      {aiLogsOpen && <AiLogsModal onClose={() => setAiLogsOpen(false)} />}
 
       {pendingImport && (
         <ImportIslandModal

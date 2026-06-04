@@ -18,6 +18,7 @@ interface SidebarProps {
   onAdd: () => void;
   onExportJson: () => void;
   onImportJson: (file: File) => void;
+  onOpenLogs?: () => void;
   onOpenConfig: () => void;
   onOpenTos: () => void;
   hasApiKey: boolean;
@@ -38,6 +39,7 @@ export function Sidebar({
   onAdd,
   onExportJson,
   onImportJson,
+  onOpenLogs,
   onOpenConfig,
   onOpenTos,
   hasApiKey,
@@ -210,6 +212,9 @@ export function Sidebar({
             label="Import JSON"
             onClick={() => importRef.current?.click()}
           />
+          {onOpenLogs && (
+            <IconButton icon="logs" label="AI logs" onClick={onOpenLogs} />
+          )}
         </div>
         <input
           ref={importRef}

@@ -10,9 +10,12 @@ export type IslandRegenFailure = {
 export type IslandRegenProgress = {
   mode: IslandRegenMode;
   phase: 'running' | 'stopped' | 'done';
-  /** 0-based index of the character currently being processed. */
+  /** 0-based index of the character currently being processed (sequential) or 0 for batch. */
   index: number;
+  /** Sequential: islander count. Batch: always 1 (one API request). */
   total: number;
+  /** Batch mode only — how many islanders are in the single request. */
+  islanderCount?: number;
   currentName: string;
   succeeded: string[];
   failed: IslandRegenFailure[];
@@ -31,12 +34,14 @@ export function IslandRegenerateModal({
   onRetryFailed,
   onHide,
 }: IslandRegenerateModalProps) {
-  const { mode, phase, index, total, currentName, succeeded, failed } = progress;
+  const { mode, phase, index, total, islanderCount, currentName, succeeded, failed } =
+    progress;
   const running = phase === 'running';
   const processed = succeeded.length + failed.length;
+  const batchRunning = mode === 'batch' && running;
   const pct =
-    mode === 'batch' && running
-      ? 50
+    batchRunning
+      ? 0
       : total > 0
         ? Math.round((processed / total) * 100)
         : 0;
@@ -83,7 +88,9 @@ export function IslandRegenerateModal({
           <p className="modal-intro">
             {mode === 'batch' ? (
               <>
-                Regenerating <strong>all islanders</strong>…
+                Regenerating <strong>{islanderCount ?? total}</strong> islander
+                {(islanderCount ?? total) === 1 ? '' : 's'} in{' '}
+                <strong>one API request</strong>…
               </>
             ) : (
               <>
@@ -92,20 +99,23 @@ export function IslandRegenerateModal({
             )}
           </p>
           <div
-            className="island-regen-progress-bar"
+            className={`island-regen-progress-bar${batchRunning ? ' island-regen-progress-indeterminate' : ''}`}
             role="progressbar"
-            aria-valuenow={pct}
+            aria-valuenow={batchRunning ? undefined : pct}
             aria-valuemin={0}
             aria-valuemax={100}
+            aria-busy={batchRunning}
           >
             <div
-              className="island-regen-progress-fill"
-              style={{ width: `${pct}%` }}
+              className={`island-regen-progress-fill${batchRunning ? ' island-regen-progress-fill-indeterminate' : ''}`}
+              style={batchRunning ? undefined : { width: `${pct}%` }}
             />
           </div>
           <p className="island-regen-progress-meta">
             {mode === 'batch'
-              ? 'Batch request in progress'
+              ? batchRunning
+                ? 'Waiting for Gemini (single batch response)…'
+                : `Batch request complete · ${islanderCount ?? succeeded.length} islander${(islanderCount ?? succeeded.length) === 1 ? '' : 's'}`
               : `${processed} of ${total} processed`}
             {succeeded.length > 0 && ` · ${succeeded.length} ok`}
             {failed.length > 0 && ` · ${failed.length} failed`}

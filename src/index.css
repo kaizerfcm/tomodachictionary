@@ -2578,6 +2578,131 @@ img.avatar {
   transition: width 0.2s ease;
 }
 
+.island-regen-progress-indeterminate {
+  position: relative;
+}
+
+.island-regen-progress-fill-indeterminate {
+  width: 35%;
+  animation: island-regen-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes island-regen-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.ai-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: min(60vh, 32rem);
+  overflow: auto;
+}
+
+.ai-log-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ai-log-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  background: var(--surface);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.ai-log-summary:hover {
+  background: var(--surface-hover, var(--border));
+}
+
+.ai-log-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.ai-log-status-ok {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+
+.ai-log-status-error {
+  background: color-mix(in srgb, #c0392b 20%, transparent);
+  color: #c0392b;
+}
+
+.ai-log-operation {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ai-log-when,
+.ai-log-duration {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ai-log-detail {
+  padding: 0 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ai-log-detail h4 {
+  margin: 0.5rem 0 0.35rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.ai-log-pre {
+  margin: 0;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+  max-height: 14rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-log-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ai-log-error {
+  margin: 0;
+  color: #c0392b;
+  font-size: 0.85rem;
+}
+
 .island-regen-progress-meta {
   margin: 0 0 1rem;
   font-size: 0.85rem;

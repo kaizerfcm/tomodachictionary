@@ -6,6 +6,11 @@ export function serializeIslandJson(data: DictionaryData): string {
   return JSON.stringify(data, null, 2);
 }
 
+/** Compact JSON for large batch prompts (same data, fewer tokens). */
+export function serializeIslandJsonCompact(data: DictionaryData): string {
+  return JSON.stringify(data);
+}
+
 export function parseIslandJson(text: string): DictionaryData {
   const raw = JSON.parse(text) as unknown;
   if (!raw || typeof raw !== 'object') {

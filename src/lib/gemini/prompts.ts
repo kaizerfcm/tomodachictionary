@@ -9,7 +9,7 @@ import type { MissingNicknamePairs } from '../missingNicknames';
 import { getEffectiveNickname } from '../nicknames';
 import { isShortPhraseType } from '../textLimits';
 import { formatGiftCatalogForPrompt } from '../livingTheDreamGifts';
-import { serializeIslandJson } from '../islandJson';
+import { serializeIslandJsonCompact } from '../islandJson';
 
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
@@ -459,7 +459,7 @@ CAST (preserve these ids exactly — nicknames and interactionTopics use target 
 ${castLines}
 
 INPUT JSON (same shape must be returned):
-${serializeIslandJson(data)}
+${serializeIslandJsonCompact(data)}
 
 TASK:
 - Rewrite phrases, nicknameDefaults, nicknames, levelUpRewards, and interactionTopics for EVERY character.

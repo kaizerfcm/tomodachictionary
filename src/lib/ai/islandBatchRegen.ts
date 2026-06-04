@@ -1,7 +1,11 @@
 import type { Character, DictionaryData } from '../../types';
 import { migrateCharacter } from '../../types';
 import { buildIslandRegenerateBatchPrompt } from '../gemini/prompts';
-import { callGemini, type ModelCallOptions } from './callModel';
+import {
+  BATCH_GEMINI_TIMEOUT_MS,
+  callGemini,
+  type ModelCallOptions,
+} from './callModel';
 import { AiError } from './errors';
 import { parseModelJson } from './parseModelJson';
 import { AI_TOKENS } from './tokenLimits';
@@ -83,6 +87,8 @@ export async function generateIslandBatchRegeneration(
     prompt,
     maxOutputTokens,
     signal: options?.signal,
+    operation: 'island-batch-regeneration',
+    timeoutMs: BATCH_GEMINI_TIMEOUT_MS,
   });
 
   return parseBatchResponse(text, finishReason, characters);

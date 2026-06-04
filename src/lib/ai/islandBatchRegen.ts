@@ -12,6 +12,18 @@ import { AI_TOKENS } from './tokenLimits';
 
 export type IslandBatchRegenOptions = Pick<ModelCallOptions, 'signal'>;
 
+export type IslandBatchRegenMissed = {
+  id: string;
+  name: string;
+};
+
+export type IslandBatchRegenResult = {
+  characters: Character[];
+  updatedIds: string[];
+  missed: IslandBatchRegenMissed[];
+  warnings: string[];
+};
+
 /** Strip bulky avatar data; keep ids and dialogue fields for the model. */
 export function buildIslandRegenPayload(characters: Character[]): DictionaryData {
   return {
@@ -39,30 +51,56 @@ function mergeRegeneratedCharacters(
   });
 }
 
-function parseBatchResponse(
+export function parseBatchResponse(
   raw: string,
   finishReason: string | undefined,
   original: Character[],
-): Character[] {
+): IslandBatchRegenResult {
   const parsed = parseModelJson<DictionaryData>(raw, { finishReason });
   if (parsed.version !== 1 || !Array.isArray(parsed.characters)) {
     throw new AiError('Batch response must be { "version": 1, "characters": [...] }');
   }
-  const regenerated = parsed.characters.map((c) =>
-    migrateCharacter(c as Parameters<typeof migrateCharacter>[0]),
-  );
-  if (regenerated.length !== original.length) {
-    throw new AiError(
-      `Batch response character count mismatch (expected ${original.length}, got ${regenerated.length})`,
+
+  const origById = new Map(original.map((c) => [c.id, c]));
+  const warnings: string[] = [];
+  const byId = new Map<string, Character>();
+
+  for (const entry of parsed.characters) {
+    const migrated = migrateCharacter(
+      entry as Parameters<typeof migrateCharacter>[0],
+    );
+    if (!origById.has(migrated.id)) {
+      warnings.push(
+        `Ignored unknown character id in batch response: ${migrated.id} (${migrated.name})`,
+      );
+      continue;
+    }
+    byId.set(migrated.id, migrated);
+  }
+
+  const updatedIds = [...byId.keys()];
+  const missed = original
+    .filter((c) => !byId.has(c.id))
+    .map((c) => ({ id: c.id, name: c.name }));
+
+  if (parsed.characters.length !== original.length) {
+    warnings.push(
+      `Batch response character count mismatch (expected ${original.length}, got ${parsed.characters.length}) — applied ${updatedIds.length} update(s), kept ${missed.length} original(s)`,
     );
   }
-  const origIds = new Set(original.map((c) => c.id));
-  for (const c of regenerated) {
-    if (!origIds.has(c.id)) {
-      throw new AiError(`Batch response contains unknown character id: ${c.id}`);
-    }
+
+  if (updatedIds.length === 0) {
+    throw new AiError(
+      'Batch response did not include any matching islanders to apply',
+    );
   }
-  return mergeRegeneratedCharacters(original, regenerated);
+
+  return {
+    characters: mergeRegeneratedCharacters(original, [...byId.values()]),
+    updatedIds,
+    missed,
+    warnings,
+  };
 }
 
 export function islandBatchOutputTokenBudget(characterCount: number): number {
@@ -76,8 +114,10 @@ export async function generateIslandBatchRegeneration(
   apiKey: string,
   characters: Character[],
   options?: IslandBatchRegenOptions,
-): Promise<Character[]> {
-  if (characters.length === 0) return [];
+): Promise<IslandBatchRegenResult> {
+  if (characters.length === 0) {
+    return { characters: [], updatedIds: [], missed: [], warnings: [] };
+  }
 
   const payload = buildIslandRegenPayload(characters);
   const prompt = buildIslandRegenerateBatchPrompt(payload);

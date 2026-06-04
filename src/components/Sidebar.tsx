@@ -20,7 +20,6 @@ interface SidebarProps {
   onImportJson: (file: File) => void;
   onOpenLogs?: () => void;
   onOpenConfig: () => void;
-  onOpenTos: () => void;
   hasApiKey: boolean;
   islands: IslandEntry[];
   activeIslandId: string;
@@ -41,7 +40,6 @@ export function Sidebar({
   onImportJson,
   onOpenLogs,
   onOpenConfig,
-  onOpenTos,
   hasApiKey,
   islands,
   activeIslandId,
@@ -205,7 +203,6 @@ export function Sidebar({
       <footer className="sidebar-footer">
         <div className="sidebar-icon-toolbar">
           <IconButton icon="settings" label="Configuration" onClick={onOpenConfig} />
-          <IconButton icon="terms" label="Terms of service" onClick={onOpenTos} />
           <IconButton icon="export" label="Export JSON" onClick={onExportJson} />
           <IconButton
             icon="import"

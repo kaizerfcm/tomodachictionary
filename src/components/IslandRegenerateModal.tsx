@@ -7,6 +7,12 @@ export type IslandRegenFailure = {
   error: string;
 };
 
+export type IslandRegenWarning = {
+  characterId: string;
+  characterName: string;
+  message: string;
+};
+
 export type IslandRegenProgress = {
   mode: IslandRegenMode;
   phase: 'running' | 'stopped' | 'done';
@@ -19,6 +25,7 @@ export type IslandRegenProgress = {
   currentName: string;
   succeeded: string[];
   failed: IslandRegenFailure[];
+  warnings?: IslandRegenWarning[];
 };
 
 interface IslandRegenerateModalProps {
@@ -34,11 +41,12 @@ export function IslandRegenerateModal({
   onRetryFailed,
   onHide,
 }: IslandRegenerateModalProps) {
-  const { mode, phase, index, total, islanderCount, currentName, succeeded, failed } =
+  const { mode, phase, index, total, islanderCount, currentName, succeeded, failed, warnings = [] } =
     progress;
   const running = phase === 'running';
   const processed = succeeded.length + failed.length;
   const batchRunning = mode === 'batch' && running;
+  const hasWarnings = warnings.length > 0;
   const pct =
     batchRunning
       ? 0
@@ -52,7 +60,9 @@ export function IslandRegenerateModal({
   if (phase === 'done') {
     title = hasFailures
       ? 'Island regeneration finished with errors'
-      : 'Island regeneration complete';
+      : hasWarnings
+        ? 'Island regeneration complete with warnings'
+        : 'Island regeneration complete';
   }
 
   return (
@@ -119,6 +129,7 @@ export function IslandRegenerateModal({
               : `${processed} of ${total} processed`}
             {succeeded.length > 0 && ` · ${succeeded.length} ok`}
             {failed.length > 0 && ` · ${failed.length} failed`}
+            {warnings.length > 0 && ` · ${warnings.length} warning${warnings.length === 1 ? '' : 's'}`}
           </p>
         </>
       )}
@@ -137,7 +148,14 @@ export function IslandRegenerateModal({
               {phase === 'stopped' ? ' (stopped)' : ''}
             </>
           )}
-          {!hasFailures && succeeded.length === 0 && 'Nothing regenerated.'}
+          {hasWarnings && (
+            <>
+              {succeeded.length > 0 || hasFailures ? ' · ' : ''}
+              <strong>{warnings.length}</strong> warning
+              {warnings.length === 1 ? '' : 's'}
+            </>
+          )}
+          {!hasFailures && succeeded.length === 0 && !hasWarnings && 'Nothing regenerated.'}
         </p>
       )}
 

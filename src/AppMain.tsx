@@ -14,7 +14,6 @@ import { Sidebar } from './components/Sidebar';
 import { CharacterEditor } from './components/CharacterEditor';
 import { CharacterGrid } from './components/CharacterGrid';
 import { ConfigPage } from './components/ConfigPage';
-import { TosPage } from './components/TosPage';
 import { ImportIslandModal } from './components/ImportIslandModal';
 import {
   AiGenerationStatus,
@@ -62,7 +61,7 @@ import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
 import { MAX_NICKNAME_OPTIONS, MAX_PHRASES_PER_TYPE } from './constants';
 import { aiSuccessMessage } from './lib/aiGenerationMessages';
 
-type View = 'main' | 'config' | 'tos';
+type View = 'main' | 'config';
 
 type AiResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -88,7 +87,7 @@ export function AppMain() {
   const [nicknameFilterFromId, setNicknameFilterFromId] = useState<string | null>(
     null,
   );
-  const [socialRewardsOpen, setSocialRewardsOpen] = useState(false);
+  const [socialRewardsOpen, setSocialRewardsOpen] = useState(true);
   const [pendingImport, setPendingImport] = useState<{
     data: import('./types').DictionaryData;
     suggestedName: string;
@@ -394,8 +393,17 @@ export function AppMain() {
         }
 
         if (result.ok) {
+          const batch = result.value;
           try {
-            replaceActiveIsland({ version: 1, characters: result.value });
+            replaceActiveIsland({ version: 1, characters: batch.characters });
+            const succeeded = targets
+              .filter((c) => batch.updatedIds.includes(c.id))
+              .map((c) => c.name);
+            const warnings = batch.missed.map((m) => ({
+              characterId: m.id,
+              characterName: m.name,
+              message: 'Missing from batch response — kept original data',
+            }));
             pushProgress({
               mode,
               phase: 'done',
@@ -403,12 +411,17 @@ export function AppMain() {
               total: 1,
               islanderCount: targets.length,
               currentName: `${targets.length} islander${targets.length === 1 ? '' : 's'}`,
-              succeeded: targets.map((c) => c.name),
+              succeeded,
               failed: [],
+              warnings,
             });
+            const missedNames = batch.missed.map((m) => m.name).join(', ');
             setAiNotice({
-              kind: 'success',
-              message: `Regenerated ${targets.length} islander${targets.length === 1 ? '' : 's'}`,
+              kind: batch.missed.length > 0 ? 'warning' : 'success',
+              message:
+                batch.missed.length > 0
+                  ? `Regenerated ${succeeded.length} of ${targets.length} islanders. Kept original: ${missedNames}.`
+                  : `Regenerated ${targets.length} islander${targets.length === 1 ? '' : 's'}`,
             });
           } catch (e) {
             const msg =
@@ -858,10 +871,6 @@ export function AppMain() {
     );
   }
 
-  if (view === 'tos') {
-    return <TosPage onBack={() => openView('main')} />;
-  }
-
   return (
     <div className="app">
       <Sidebar
@@ -873,7 +882,6 @@ export function AppMain() {
         onImportJson={handleImportJson}
         onOpenLogs={() => setAiLogsOpen(true)}
         onOpenConfig={() => openView('config')}
-        onOpenTos={() => openView('tos')}
         hasApiKey={hasApiKey}
         islands={islands}
         activeIslandId={activeIslandId}

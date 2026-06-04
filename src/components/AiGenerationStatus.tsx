@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 export type AiNotice = {
-  kind: 'success' | 'error';
+  kind: 'success' | 'error' | 'warning';
   message: string;
 };
 
@@ -17,7 +17,7 @@ interface AiGenerationStatusProps {
   onDismissNotice: () => void;
 }
 
-const NOTICE_MS = { success: 4000, error: 8000 };
+const NOTICE_MS = { success: 4000, error: 8000, warning: 7000 };
 
 export function AiGenerationStatus({
   busy,

@@ -1794,6 +1794,15 @@ img.avatar {
   color: var(--danger);
 }
 
+.ai-gen-toast-warning {
+  border-color: color-mix(in srgb, #d68910 40%, var(--border));
+  background: color-mix(in srgb, #d68910 12%, var(--surface));
+}
+
+.ai-gen-toast-warning .ai-gen-toast-message {
+  color: var(--text);
+}
+
 .ai-gen-toast-close {
   flex-shrink: 0;
   min-width: 2.75rem;

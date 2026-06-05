@@ -100,7 +100,7 @@ export function AiLogsModal({ onClose }: AiLogsModalProps) {
       }
     >
       <p className="modal-intro">
-        One log entry per Gemini request — prompt, request body, and response or
+        One log entry per local LLM request — prompt, request body, and response or
         error. Stored locally in this browser only.
       </p>
       {logs.length === 0 ? (

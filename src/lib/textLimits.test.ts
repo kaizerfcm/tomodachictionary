@@ -6,7 +6,7 @@ import {
   clampStandardPhrase,
   applyShortTextLimitsToGeneration,
 } from './textLimits';
-import type { FullCharacterGeneration } from './gemini/types';
+import type { FullCharacterGeneration } from './ai/types';
 
 describe('textLimits', () => {
   it('clamps short text to 13 characters', () => {

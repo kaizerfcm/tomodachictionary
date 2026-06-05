@@ -6,6 +6,8 @@ export type AiLogStatus = 'ok' | 'error';
 export interface AiLogRequest {
   model: string;
   maxOutputTokens: number;
+  url?: string;
+  continuationCount?: number;
   body: unknown;
 }
 

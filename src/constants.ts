@@ -10,7 +10,7 @@ export const MAX_NICKNAME_OPTIONS = 10;
 /** Lines / nicknames generated per type when creating a character via Canon AI. */
 export const AI_INITIAL_BATCH_SIZE = 1;
 
-/** Max islanders per Fill-missing Gemini request (avoids truncated JSON). */
+/** Max islanders per Fill-missing LLM request (avoids truncated JSON). */
 export const MISSING_NICKNAMES_CHUNK_SIZE = 12;
 
 /** Max character name length. */

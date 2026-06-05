@@ -3,7 +3,7 @@ import { MAX_CHARACTER_EXTRA_LENGTH } from '../constants';
 import { Modal } from './Modal';
 
 interface NewCharacterModalProps {
-  hasApiKey: boolean;
+  hasLlmHost: boolean;
   onClose: () => void;
   onAddPlain: (name: string, extra?: string) => void;
   onQuickFill: (name: string, extra?: string) => void;
@@ -11,7 +11,7 @@ interface NewCharacterModalProps {
 }
 
 export function NewCharacterModal({
-  hasApiKey,
+  hasLlmHost,
   onClose,
   onAddPlain,
   onQuickFill,
@@ -65,7 +65,7 @@ export function NewCharacterModal({
           >
             Quick fill
           </button>
-          {hasApiKey && (
+          {hasLlmHost && (
             <button
               type="button"
               className="btn btn-secondary"

@@ -1,7 +1,7 @@
 import { PHRASE_TYPES, type Character, type InteractionTopic, type InteractionTopicKind, type PhraseType, type LevelUpRewards } from '../types';
-import type { FullCharacterGeneration, Triplet } from './gemini/types';
+import type { FullCharacterGeneration, Triplet } from './ai/types';
 import type { MissingNicknamePairs } from './missingNicknames';
-import type { GeneratedMissingNicknames } from './gemini/types';
+import type { GeneratedMissingNicknames } from './ai/types';
 import { clampOutgoingNickname, clampPhraseForType, isShortPhraseType } from './textLimits';
 import {
   LTD_PREZZIES,

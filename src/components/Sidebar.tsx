@@ -20,7 +20,7 @@ interface SidebarProps {
   onImportJson: (file: File) => void;
   onOpenLogs?: () => void;
   onOpenConfig: () => void;
-  hasApiKey: boolean;
+  hasLlmHost: boolean;
   islands: IslandEntry[];
   activeIslandId: string;
   activeIslandName: string;
@@ -38,7 +38,7 @@ export function Sidebar({
   onImportJson,
   onOpenLogs,
   onOpenConfig,
-  hasApiKey,
+  hasLlmHost,
   islands,
   activeIslandId,
   activeIslandName,
@@ -132,8 +132,8 @@ export function Sidebar({
             <button type="button" className="btn btn-primary btn-sm btn-block" onClick={onAdd}>
               + Add character
             </button>
-            {hasApiKey && (
-              <span className="api-badge" title="Gemini API key configured">
+            {hasLlmHost && (
+              <span className="api-badge" title="Local LLM configured">
                 AI on
               </span>
             )}

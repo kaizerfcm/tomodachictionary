@@ -4,6 +4,3 @@ export class AiError extends Error {
     this.name = 'AiError';
   }
 }
-
-/** @deprecated Use AiError */
-export { AiError as GeminiError };

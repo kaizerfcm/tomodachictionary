@@ -8,7 +8,7 @@ interface GiftsPanelProps {
   onUpdateLevelUpRewards: (rewards: LevelUpRewards) => void;
   onRegenerateAll: () => Promise<void>;
   generatingKey: string | null;
-  hasApiKey: boolean;
+  hasLlmHost: boolean;
 }
 
 export function GiftsPanel({
@@ -16,7 +16,7 @@ export function GiftsPanel({
   onUpdateLevelUpRewards,
   onRegenerateAll,
   generatingKey,
-  hasApiKey,
+  hasLlmHost,
 }: GiftsPanelProps) {
   const rewards = subject.levelUpRewards || {
     song: '',
@@ -30,10 +30,10 @@ export function GiftsPanel({
   return (
     <section className="gifts-panel editor-section">
       <EditorSectionHeader title="Gifts">
-        {hasApiKey && (
+        {hasLlmHost && (
           <AiSparkButton
             onClick={onRegenerateAll}
-            disabled={generatingKey === 'gifts:all' || !hasApiKey}
+            disabled={generatingKey === 'gifts:all' || !hasLlmHost}
             busy={generatingKey === 'gifts:all'}
             title="Suggest all gifts from canon"
           />

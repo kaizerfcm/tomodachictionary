@@ -20,7 +20,7 @@ interface CharacterEditorProps {
   onUpdatePhrase: (type: PhraseType, index: number, text: string) => void;
   onAddPhrase: (type: PhraseType, text?: string) => void;
   onRemovePhrase: (type: PhraseType, index: number) => void;
-  hasApiKey: boolean;
+  hasLlmHost: boolean;
   generatingKey: string | null;
   onUpdateNicknameDefaultAt: (index: number, value: string) => void;
   onAddNicknameDefault: (value?: string) => void;
@@ -61,7 +61,7 @@ export function CharacterEditor({
   onUpdatePhrase,
   onAddPhrase,
   onRemovePhrase,
-  hasApiKey,
+  hasLlmHost,
   generatingKey,
   onUpdateNicknameDefaultAt,
   onAddNicknameDefault,
@@ -191,7 +191,7 @@ export function CharacterEditor({
             onUpdatePhrase={onUpdatePhrase}
             onAddPhrase={onAddPhrase}
             onRemovePhrase={onRemovePhrase}
-            hasApiKey={hasApiKey}
+            hasLlmHost={hasLlmHost}
             generatingKey={generatingKey}
             onGeneratePhrase={onGeneratePhrase}
             onRegenerateAllPhrases={onRegenerateAllPhrases}
@@ -201,7 +201,7 @@ export function CharacterEditor({
             onUpdateLevelUpRewards={onUpdateLevelUpRewards}
             onRegenerateAll={onRegenerateAllGifts}
             generatingKey={generatingKey}
-            hasApiKey={hasApiKey}
+            hasLlmHost={hasLlmHost}
           />
           <ConversationTopicsPanel
             subject={character}
@@ -210,7 +210,7 @@ export function CharacterEditor({
             onRegenerateAll={onRegenerateAllTopics}
             onGenerateOne={onGenerateInteractionTopic}
             generatingKey={generatingKey}
-            hasApiKey={hasApiKey}
+            hasLlmHost={hasLlmHost}
           />
         </div>
         <aside className="editor-body-aside">
@@ -228,7 +228,7 @@ export function CharacterEditor({
             onUpdateIncomingAt={onUpdateIncomingAt}
             onAddIncoming={onAddIncoming}
             onRemoveIncoming={onRemoveIncoming}
-            hasApiKey={hasApiKey}
+            hasLlmHost={hasLlmHost}
             communityNicknamesEnabled={communityNicknamesEnabled}
             generatingKey={generatingKey}
             onGenerateDefault={onGenerateDefaultNickname}

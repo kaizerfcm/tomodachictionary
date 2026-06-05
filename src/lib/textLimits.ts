@@ -1,6 +1,6 @@
 import { MAX_PHRASE_LENGTH, MAX_SHORT_TEXT_LENGTH } from '../constants';
 import type { PhraseType } from '../types';
-import type { FullCharacterGeneration, Triplet } from './gemini/types';
+import type { FullCharacterGeneration, Triplet } from './ai/types';
 
 const SHORT_PHRASE_TYPES: PhraseType[] = [
   'startingSentence',

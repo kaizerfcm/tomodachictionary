@@ -1,16 +1,16 @@
 import { useCallback, useState } from 'react';
-import { loadGeminiApiKey, saveGeminiApiKey } from '../lib/settings';
+import { loadLlmHost, saveLlmHost } from '../lib/settings';
 
 export function useSettings() {
-  const [apiKey, setApiKeyState] = useState(loadGeminiApiKey);
+  const [llmHost, setLlmHostState] = useState(loadLlmHost);
 
-  const setApiKey = useCallback((key: string) => {
-    const trimmed = key.trim();
-    saveGeminiApiKey(trimmed);
-    setApiKeyState(trimmed);
+  const setLlmHost = useCallback((host: string) => {
+    const trimmed = host.trim();
+    saveLlmHost(trimmed);
+    setLlmHostState(trimmed);
   }, []);
 
-  const hasApiKey = Boolean(apiKey.trim());
+  const hasLlmHost = Boolean(llmHost.trim());
 
-  return { apiKey, setApiKey, hasApiKey };
+  return { llmHost, setLlmHost, hasLlmHost };
 }

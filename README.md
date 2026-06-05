@@ -11,4 +11,4 @@ npm run dev
 npm run build
 ```
 
-Web app — static `dist/` (e.g. Vercel). Optional Gemini API key in Configuration for Canon AI generation.
+Web app — static `dist/` (e.g. Vercel). Optional local LLM IP in Configuration for Canon AI generation (LM Studio on port 1234).

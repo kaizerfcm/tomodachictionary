@@ -2,7 +2,7 @@ import {
   MAX_NICKNAME_OPTIONS,
   MAX_PHRASES_PER_TYPE,
 } from '../constants';
-import type { FullCharacterGeneration, Triplet } from './gemini/types';
+import type { FullCharacterGeneration, Triplet } from './ai/types';
 import { parseInteractionTopicFromAi } from './interactionTopics';
 import { formatGiftsPreview } from './livingTheDreamGifts';
 import { dedupeNicknames, sanitizeCharacterNicknames } from './nicknames';

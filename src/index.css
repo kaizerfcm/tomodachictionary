@@ -1723,7 +1723,7 @@ img.avatar {
   color: var(--text-muted);
 }
 
-/* Gemini generation feedback (fixed bottom) */
+/* Local LLM generation feedback (fixed bottom) */
 .ai-gen-status {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom, 0px));

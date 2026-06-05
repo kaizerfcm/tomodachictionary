@@ -6,7 +6,7 @@ import {
   formatDialoguePreview,
   tripletToLines,
 } from './characterRegeneration';
-import type { FullCharacterGeneration } from './gemini/types';
+import type { FullCharacterGeneration } from './ai/types';
 import { createCharacter, PHRASE_TYPES } from '../types';
 
 function emptyGeneration(): FullCharacterGeneration {

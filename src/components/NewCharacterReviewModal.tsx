@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { PHRASE_TYPES, createCharacter, emptyPhrases, type Character, type PhraseType } from '../types';
-import type { FullCharacterGeneration } from '../lib/gemini/types';
+import type { FullCharacterGeneration } from '../lib/ai/types';
 import { parseInteractionTopicFromAi } from '../lib/interactionTopics';
 import { OptionTripletMulti } from './OptionTriplet';
 import { Modal } from './Modal';

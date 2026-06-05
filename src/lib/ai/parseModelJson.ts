@@ -47,6 +47,8 @@ export function parseModelJson<T>(
   const jsonStr = extractJsonString(raw);
   const truncated =
     options?.finishReason === 'MAX_TOKENS' ||
+    options?.finishReason === 'length' ||
+    options?.finishReason === 'max_tokens' ||
     (jsonStr.length > 0 && !jsonStr.trimEnd().endsWith('}'));
 
   try {

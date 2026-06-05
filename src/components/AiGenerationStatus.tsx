@@ -46,9 +46,9 @@ export function AiGenerationStatus({
         </div>
       )}
       {busy && (
-        <div className="ai-gen-spinner-wrap" aria-busy="true" aria-label="Generating with Gemini">
+        <div className="ai-gen-spinner-wrap" aria-busy="true" aria-label="Generating with local LLM">
           <span className="ai-gen-spinner" aria-hidden />
-          <span className="ai-gen-spinner-label">Generating with Gemini…</span>
+          <span className="ai-gen-spinner-label">Generating with local LLM…</span>
         </div>
       )}
     </div>

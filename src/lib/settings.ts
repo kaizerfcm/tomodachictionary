@@ -1,17 +1,17 @@
-const GEMINI_KEY_STORAGE = 'tomodachi-gemini-api-key';
+const LLM_HOST_STORAGE = 'tomodict-llm-host';
 
-export function loadGeminiApiKey(): string {
+export function loadLlmHost(): string {
   try {
-    return localStorage.getItem(GEMINI_KEY_STORAGE) ?? '';
+    return localStorage.getItem(LLM_HOST_STORAGE) ?? '';
   } catch {
     return '';
   }
 }
 
-export function saveGeminiApiKey(key: string): void {
-  localStorage.setItem(GEMINI_KEY_STORAGE, key.trim());
+export function saveLlmHost(host: string): void {
+  localStorage.setItem(LLM_HOST_STORAGE, host.trim());
 }
 
-export function clearGeminiApiKey(): void {
-  localStorage.removeItem(GEMINI_KEY_STORAGE);
+export function clearLlmHost(): void {
+  localStorage.removeItem(LLM_HOST_STORAGE);
 }

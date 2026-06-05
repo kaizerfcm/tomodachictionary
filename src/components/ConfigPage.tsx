@@ -1,8 +1,8 @@
 import type { ThemePreference } from '../lib/theme';
 
 interface ConfigPageProps {
-  apiKey: string;
-  onApiKeyChange: (key: string) => void;
+  llmHost: string;
+  onLlmHostChange: (host: string) => void;
   themePreference: ThemePreference;
   onThemePreferenceChange: (pref: ThemePreference) => void;
   onClearAllData: () => void;
@@ -10,8 +10,8 @@ interface ConfigPageProps {
 }
 
 export function ConfigPage({
-  apiKey,
-  onApiKeyChange,
+  llmHost,
+  onLlmHostChange,
   themePreference,
   onThemePreferenceChange,
   onClearAllData,
@@ -56,17 +56,18 @@ export function ConfigPage({
       </section>
 
       <section className="config-section">
-        <h2>Gemini API</h2>
-        <label className="config-label" htmlFor="gemini-key">
-          API key
+        <h2>Local LLM</h2>
+        <label className="config-label" htmlFor="llm-host">
+          IP
         </label>
         <input
-          id="gemini-key"
-          type="password"
+          id="llm-host"
+          type="text"
           className="config-input"
-          value={apiKey}
-          onChange={(e) => onApiKeyChange(e.target.value)}
+          value={llmHost}
+          onChange={(e) => onLlmHostChange(e.target.value)}
           autoComplete="off"
+          placeholder="127.0.0.1"
         />
       </section>
 

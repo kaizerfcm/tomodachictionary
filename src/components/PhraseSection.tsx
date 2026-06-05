@@ -15,7 +15,7 @@ interface PhraseSectionProps {
   onAdd: () => void;
   onAddText?: (text: string) => void;
   onRemove: (index: number) => void;
-  hasApiKey?: boolean;
+  hasLlmHost?: boolean;
   aiBusy?: boolean;
   onGenerateAi?: () => void;
 }
@@ -30,12 +30,12 @@ export function PhraseSection({
   onAdd,
   onAddText,
   onRemove,
-  hasApiKey,
+  hasLlmHost,
   aiBusy,
   onGenerateAi,
 }: PhraseSectionProps) {
   const atLimit = phrases.length >= MAX_PHRASES_PER_TYPE;
-  const showActions = communityEnabled || (hasApiKey && onGenerateAi);
+  const showActions = communityEnabled || (hasLlmHost && onGenerateAi);
   const shortPhrase = isShortPhraseType(phraseType);
 
   return (
@@ -54,7 +54,7 @@ export function PhraseSection({
                 onAddPhrase={onAddText}
               />
             )}
-            {hasApiKey && onGenerateAi && (
+            {hasLlmHost && onGenerateAi && (
               <AiSparkButton
                 busy={aiBusy}
                 disabled={atLimit}
@@ -111,7 +111,7 @@ export function PhraseEditor({
   onUpdatePhrase,
   onAddPhrase,
   onRemovePhrase,
-  hasApiKey,
+  hasLlmHost,
   generatingKey,
   onGeneratePhrase,
   onRegenerateAllPhrases,
@@ -122,7 +122,7 @@ export function PhraseEditor({
   onUpdatePhrase: (type: PhraseType, index: number, text: string) => void;
   onAddPhrase: (type: PhraseType, text?: string) => void;
   onRemovePhrase: (type: PhraseType, index: number) => void;
-  hasApiKey?: boolean;
+  hasLlmHost?: boolean;
   generatingKey?: string | null;
   onGeneratePhrase?: (type: PhraseType) => void;
   onRegenerateAllPhrases?: () => void;
@@ -130,7 +130,7 @@ export function PhraseEditor({
   return (
     <section className="phrases-panel editor-section">
       <EditorSectionHeader title="Phrases">
-        {hasApiKey && onRegenerateAllPhrases && (
+        {hasLlmHost && onRegenerateAllPhrases && (
           <AiSparkButton
             onClick={onRegenerateAllPhrases}
             busy={generatingKey === 'phrases:all'}
@@ -151,7 +151,7 @@ export function PhraseEditor({
           onAdd={() => onAddPhrase(key)}
           onAddText={(text) => onAddPhrase(key, text)}
           onRemove={(index) => onRemovePhrase(key, index)}
-          hasApiKey={hasApiKey}
+          hasLlmHost={hasLlmHost}
           aiBusy={generatingKey === `phrase:${key}`}
           onGenerateAi={
             onGeneratePhrase ? () => onGeneratePhrase(key) : undefined

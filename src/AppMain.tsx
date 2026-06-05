@@ -33,13 +33,13 @@ import {
 import {
   buildOneDefaultNicknamePrompt,
   buildOnePhrasePrompt,
-} from './lib/gemini/prompts';
+} from './lib/ai/prompts';
 import { generateQuickFillCharacter } from './lib/localGeneration';
 import {
   nicknamesFromOutgoing,
   phrasesFromGeneration,
 } from './lib/characterRegeneration';
-import type { FullCharacterGeneration } from './lib/gemini/types';
+import type { FullCharacterGeneration } from './lib/ai/types';
 import type { PhraseType } from './types';
 import { AiError } from './lib/ai/errors';
 import { downloadIslandJson, parseIslandJson } from './lib/islandJson';
@@ -114,7 +114,7 @@ export function AppMain() {
     clearAllData,
   } = useDictionary();
 
-  const { apiKey, setApiKey, hasApiKey } = useSettings();
+  const { llmHost, setLlmHost, hasLlmHost } = useSettings();
 
   const sidebarCharacters = useMemo(
     () => sortCharacters(characters, 'name'),
@@ -167,8 +167,8 @@ export function AppMain() {
       fn: () => Promise<T>,
       options?: { quiet?: boolean; signal?: AbortSignal },
     ): Promise<AiResult<T>> => {
-      if (!hasApiKey) {
-        return { ok: false, error: 'No API key configured' };
+      if (!hasLlmHost) {
+        return { ok: false, error: 'No local LLM IP configured' };
       }
       if (options?.signal?.aborted) {
         return { ok: false, error: 'Generation cancelled' };
@@ -211,7 +211,7 @@ export function AppMain() {
         setGeneratingKey(null);
       }
     },
-    [hasApiKey],
+    [hasLlmHost],
   );
 
   const runAi = useCallback(
@@ -240,14 +240,14 @@ export function AppMain() {
     async (name: string, extra?: string) => {
       setShowNewCharModal(false);
       const generation = await runAi('newchar', () =>
-        generateFullCharacter(apiKey, name, characters, extra),
+        generateFullCharacter(llmHost, name, characters, extra),
       );
       if (generation) {
         setNewCharReview({ name, extra, generation, source: 'canonAi' });
         setNewCharReviewKey((k) => k + 1);
       }
     },
-    [apiKey, characters, runAi],
+    [llmHost, characters, runAi],
   );
 
   const handleRegenerateNewCharacter = useCallback(async () => {
@@ -256,7 +256,7 @@ export function AppMain() {
 
     if (source === 'canonAi') {
       const generation = await runAi('newchar', () =>
-        generateFullCharacter(apiKey, name, characters, extra),
+        generateFullCharacter(llmHost, name, characters, extra),
       );
       if (generation) {
         setNewCharReview({ name, extra, generation, source: 'canonAi' });
@@ -272,12 +272,12 @@ export function AppMain() {
       kind: 'success',
       message: 'Quick fill ready — review and add',
     });
-  }, [apiKey, characters, newCharReview, runAi]);
+  }, [llmHost, characters, newCharReview, runAi]);
 
   const handleRegenerateAllPhrases = useCallback(async () => {
     if (!selected) return;
     const phrases = await runAi('phrases:all', () =>
-      generateAllCharacterPhrases(apiKey, selected.name, selected.extra),
+      generateAllCharacterPhrases(llmHost, selected.name, selected.extra),
     );
     if (!phrases) return;
     applyRegeneratedContent(selected.id, {
@@ -288,14 +288,14 @@ export function AppMain() {
       interactionTopics: selected.interactionTopics,
     });
     setAiNotice({ kind: 'success', message: 'Phrases regenerated' });
-  }, [apiKey, applyRegeneratedContent, runAi, selected]);
+  }, [llmHost, applyRegeneratedContent, runAi, selected]);
 
   const handleRegenerateAllNicknames = useCallback(async () => {
     if (!selected) return;
     const cast = characters.filter((c) => c.id !== selected.id);
     const outgoing = await runAi('nicknames:all', () =>
       generateAllCharacterNicknames(
-        apiKey,
+        llmHost,
         selected.name,
         cast,
         selected.extra,
@@ -314,18 +314,18 @@ export function AppMain() {
       interactionTopics: selected.interactionTopics,
     });
     setAiNotice({ kind: 'success', message: 'Nicknames regenerated' });
-  }, [apiKey, applyRegeneratedContent, characters, runAi, selected]);
+  }, [llmHost, applyRegeneratedContent, characters, runAi, selected]);
 
   const handleRegenerateAllGifts = useCallback(async () => {
     if (!selected) return;
     const rewards = await runAi('gifts:all', () =>
-      generateLevelUpRewards(apiKey, selected),
+      generateLevelUpRewards(llmHost, selected),
     );
     if (rewards) {
       updateLevelUpRewards(selected.id, rewards);
       setAiNotice({ kind: 'success', message: 'Gifts regenerated' });
     }
-  }, [apiKey, runAi, selected, updateLevelUpRewards]);
+  }, [llmHost, runAi, selected, updateLevelUpRewards]);
 
   const handleGenerateInteractionTopic = useCallback(
     async (targetId: string) => {
@@ -333,7 +333,7 @@ export function AppMain() {
       const target = characters.find((c) => c.id === targetId);
       if (!target) return;
       const topic = await runAi(`topic-${targetId}`, () =>
-        generateInteractionTopic(apiKey, selected, target),
+        generateInteractionTopic(llmHost, selected, target),
       );
       if (topic) {
         updateInteractionTopic(
@@ -344,7 +344,7 @@ export function AppMain() {
         );
       }
     },
-    [apiKey, characters, runAi, selected, updateInteractionTopic],
+    [llmHost, characters, runAi, selected, updateInteractionTopic],
   );
 
   const handleRegenerateAllTopics = useCallback(async () => {
@@ -358,7 +358,7 @@ export function AppMain() {
       return;
     }
     const topics = await runAi('topics:all', () =>
-      generateMissingInteractionTopics(apiKey, selected, targets),
+      generateMissingInteractionTopics(llmHost, selected, targets),
     );
     if (!topics) return;
     const nameToId = new Map(characters.map((c) => [c.name, c.id]));
@@ -377,7 +377,7 @@ export function AppMain() {
       kind: 'success',
       message: 'Conversation topics regenerated',
     });
-  }, [apiKey, characters, runAi, selected, updateInteractionTopic]);
+  }, [llmHost, characters, runAi, selected, updateInteractionTopic]);
 
   const handleGeneratePhrase = useCallback(
     async (type: PhraseType) => {
@@ -385,14 +385,14 @@ export function AppMain() {
       if (selected.phrases[type].length >= MAX_PHRASES_PER_TYPE) return;
       const line = await runAi(`phrase:${type}`, () =>
         generateOnePhrase(
-          apiKey,
+          llmHost,
           buildOnePhrasePrompt(selected, characters, type),
           type,
         ),
       );
       if (line) addPhrase(selected.id, type, line);
     },
-    [addPhrase, apiKey, characters, runAi, selected],
+    [addPhrase, llmHost, characters, runAi, selected],
   );
 
   const handleGenerateDefaultNickname = useCallback(async () => {
@@ -400,13 +400,13 @@ export function AppMain() {
     if (selected.nicknameDefaults.length >= MAX_NICKNAME_OPTIONS) return;
     const nick = await runAi('nick:default', () =>
       generateOneNickname(
-        apiKey,
+        llmHost,
         buildOneDefaultNicknamePrompt(selected, characters),
         true,
       ),
     );
     if (nick) addNicknameDefault(selected.id, nick);
-  }, [addNicknameDefault, apiKey, characters, runAi, selected]);
+  }, [addNicknameDefault, llmHost, characters, runAi, selected]);
 
   const handleConfirmNewCharacter = useCallback(
     (result: {
@@ -445,8 +445,8 @@ export function AppMain() {
   if (view === 'config') {
     return (
       <ConfigPage
-        apiKey={apiKey}
-        onApiKeyChange={setApiKey}
+        llmHost={llmHost}
+        onLlmHostChange={setLlmHost}
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
         onClearAllData={clearAllData}
@@ -466,7 +466,7 @@ export function AppMain() {
         onImportJson={handleImportJson}
         onOpenLogs={() => setAiLogsOpen(true)}
         onOpenConfig={() => openView('config')}
-        hasApiKey={hasApiKey}
+        hasLlmHost={hasLlmHost}
         islands={islands}
         activeIslandId={activeIslandId}
         activeIslandName={activeIslandName}
@@ -497,7 +497,7 @@ export function AppMain() {
               onRemovePhrase={(type, index) =>
                 removePhrase(selected.id, type, index)
               }
-              hasApiKey={hasApiKey}
+              hasLlmHost={hasLlmHost}
               generatingKey={generatingKey}
               onUpdateNicknameDefaultAt={(index, value) =>
                 updateNicknameDefaultAt(selected.id, index, value)
@@ -555,7 +555,7 @@ export function AppMain() {
 
       {showNewCharModal && (
         <NewCharacterModal
-          hasApiKey={hasApiKey}
+          hasLlmHost={hasLlmHost}
           onClose={() => setShowNewCharModal(false)}
           onAddPlain={(name, extra) => {
             const c = addCharacter(name, extra);

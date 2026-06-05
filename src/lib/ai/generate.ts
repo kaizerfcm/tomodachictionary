@@ -8,8 +8,8 @@ import {
   buildLevelUpRewardsPrompt,
   buildInteractionTopicPrompt,
   buildMissingInteractionTopicsPrompt,
-} from '../gemini/prompts';
-import type { GeneratedMissingNicknames } from '../gemini/types';
+} from './prompts';
+import type { GeneratedMissingNicknames } from './types';
 import {
   chunkMissingNicknamePairs,
   type MissingNicknamePairs,
@@ -26,8 +26,8 @@ import type {
   GeneratedOutgoingNicknames,
   GeneratedPhrases,
   Triplet,
-} from '../gemini/types';
-import { callGemini, type ModelCallOptions } from './callModel';
+} from './types';
+import { callLocalLlm, type ModelCallOptions } from './callModel';
 import { AiError } from './errors';
 import { parseModelJson } from './parseModelJson';
 import { AI_TOKENS } from './tokenLimits';
@@ -63,11 +63,11 @@ function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw new AiError('Generation cancelled');
 }
 
-async function callGeminiJson<T>(
-  apiKey: string,
+async function callLocalLlmJson<T>(
+  llmHost: string,
   options: ModelCallOptions,
 ): Promise<T> {
-  const { text, finishReason } = await callGemini(apiKey, options);
+  const { text, finishReason } = await callLocalLlm(llmHost, options);
   return parseModelJson<T>(text, { finishReason });
 }
 
@@ -174,16 +174,16 @@ function outgoingHasGenericNicknames(outgoing: GeneratedOutgoingNicknames): bool
 }
 
 async function generateCharacterPhrases(
-  apiKey: string,
+  llmHost: string,
   name: string,
   extra?: string,
   options?: GenerateCallOptions,
 ): Promise<{ phrases: GeneratedPhrases; levelUpRewards: LevelUpRewards }> {
   throwIfAborted(options?.signal);
-  const raw = await callGeminiJson<{
+  const raw = await callLocalLlmJson<{
     phrases: Record<string, unknown>;
     levelUpRewards?: Record<string, unknown>;
-  }>(apiKey, {
+  }>(llmHost, {
     prompt: buildFullCharacterPhrasesPrompt(name, extra),
     maxOutputTokens: AI_TOKENS.fullCharacterPhrases,
     signal: options?.signal,
@@ -200,7 +200,7 @@ async function generateCharacterPhrases(
 }
 
 async function generateCharacterOutgoingNicknames(
-  apiKey: string,
+  llmHost: string,
   name: string,
   characters: Character[],
   extra?: string,
@@ -225,7 +225,7 @@ async function generateCharacterOutgoingNicknames(
     throwIfAborted(options?.signal);
     const chunk = chunks[i];
     const includeDefaults = i === 0;
-    const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+    const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
       prompt: buildFullCharacterNicknamesPrompt(name, chunk, extra, {
         includeDefaults,
       }),
@@ -254,21 +254,21 @@ async function generateCharacterOutgoingNicknames(
 }
 
 export async function generateFullCharacter(
-  apiKey: string,
+  llmHost: string,
   name: string,
   characters: Character[],
   extra?: string,
   options?: GenerateCallOptions,
 ): Promise<FullCharacterGeneration> {
   const phrasesResult = await generateCharacterPhrases(
-    apiKey,
+    llmHost,
     name,
     extra,
     options,
   );
 
   let nicknamesResult = await generateCharacterOutgoingNicknames(
-    apiKey,
+    llmHost,
     name,
     characters,
     extra,
@@ -277,7 +277,7 @@ export async function generateFullCharacter(
   if (outgoingHasGenericNicknames(nicknamesResult.outgoing)) {
     throwIfAborted(options?.signal);
     const retry = await generateCharacterOutgoingNicknames(
-      apiKey,
+      llmHost,
       name,
       characters,
       extra,
@@ -299,13 +299,13 @@ export async function generateFullCharacter(
 }
 
 export async function generateAllCharacterPhrases(
-  apiKey: string,
+  llmHost: string,
   name: string,
   extra?: string,
   options?: GenerateCallOptions,
 ): Promise<GeneratedPhrases> {
   const { phrases } = await generateCharacterPhrases(
-    apiKey,
+    llmHost,
     name,
     extra,
     options,
@@ -327,14 +327,14 @@ export async function generateAllCharacterPhrases(
 }
 
 export async function generateAllCharacterNicknames(
-  apiKey: string,
+  llmHost: string,
   name: string,
   characters: Character[],
   extra?: string,
   options?: GenerateCallOptions,
 ): Promise<GeneratedOutgoingNicknames> {
   let result = await generateCharacterOutgoingNicknames(
-    apiKey,
+    llmHost,
     name,
     characters,
     extra,
@@ -343,7 +343,7 @@ export async function generateAllCharacterNicknames(
   if (outgoingHasGenericNicknames(result.outgoing)) {
     throwIfAborted(options?.signal);
     const retry = await generateCharacterOutgoingNicknames(
-      apiKey,
+      llmHost,
       name,
       characters,
       extra,
@@ -374,11 +374,11 @@ export function extractFirstLine(
 }
 
 export async function generateOnePhrase(
-  apiKey: string,
+  llmHost: string,
   prompt: string,
   phraseType?: PhraseType,
 ): Promise<string> {
-  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+  const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
     operation: 'one-phrase',
@@ -399,11 +399,11 @@ export async function generateOnePhrase(
 }
 
 export async function generateOneNickname(
-  apiKey: string,
+  llmHost: string,
   prompt: string,
   clampToShort = false,
 ): Promise<string> {
-  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+  const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
     operation: 'one-nickname',
@@ -431,10 +431,10 @@ function parseNicknameStringMap(
 }
 
 export async function generateMissingIslandNicknames(
-  apiKey: string,
+  llmHost: string,
   prompt: string,
 ): Promise<GeneratedMissingNicknames> {
-  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+  const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
     prompt,
     maxOutputTokens: AI_TOKENS.missingNicknames,
     operation: 'missing-island-nicknames',
@@ -447,7 +447,7 @@ export async function generateMissingIslandNicknames(
 
 /** Fills many missing nicknames in chunks so output is not truncated. */
 export async function generateMissingIslandNicknamesBatched(
-  apiKey: string,
+  llmHost: string,
   subject: Character,
   allCharacters: Character[],
   missing: MissingNicknamePairs,
@@ -465,7 +465,7 @@ export async function generateMissingIslandNicknamesBatched(
       chunk,
       { compactCast: true },
     );
-    const part = await generateMissingIslandNicknames(apiKey, prompt);
+    const part = await generateMissingIslandNicknames(llmHost, prompt);
     Object.assign(merged.outgoing, part.outgoing);
     Object.assign(merged.incoming, part.incoming);
   }
@@ -474,11 +474,11 @@ export async function generateMissingIslandNicknamesBatched(
 }
 
 export async function generateLevelUpRewards(
-  apiKey: string,
+  llmHost: string,
   character: Character,
 ): Promise<LevelUpRewards> {
   const prompt = buildLevelUpRewardsPrompt(character);
-  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+  const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
     prompt,
     maxOutputTokens: AI_TOKENS.gifts,
     operation: 'level-up-rewards',
@@ -487,12 +487,12 @@ export async function generateLevelUpRewards(
 }
 
 export async function generateInteractionTopic(
-  apiKey: string,
+  llmHost: string,
   subject: Character,
   target: Character,
 ): Promise<InteractionTopic> {
   const prompt = buildInteractionTopicPrompt(subject, target);
-  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+  const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
     prompt,
     maxOutputTokens: AI_TOKENS.singleLine,
     operation: 'interaction-topic',
@@ -503,13 +503,13 @@ export async function generateInteractionTopic(
 }
 
 export async function generateMissingInteractionTopics(
-  apiKey: string,
+  llmHost: string,
   subject: Character,
   targets: Character[],
 ): Promise<Record<string, InteractionTopic>> {
   if (targets.length === 0) return {};
   const prompt = buildMissingInteractionTopicsPrompt(subject, targets);
-  const raw = await callGeminiJson<Record<string, unknown>>(apiKey, {
+  const raw = await callLocalLlmJson<Record<string, unknown>>(llmHost, {
     prompt,
     maxOutputTokens: AI_TOKENS.missingNicknames,
     operation: 'missing-interaction-topics',

@@ -17,7 +17,7 @@ interface ConversationTopicsPanelProps {
   onRegenerateAll: () => Promise<void>;
   onGenerateOne: (targetId: string) => Promise<void>;
   generatingKey: string | null;
-  hasApiKey: boolean;
+  hasLlmHost: boolean;
 }
 
 export function ConversationTopicsPanel({
@@ -27,7 +27,7 @@ export function ConversationTopicsPanel({
   onRegenerateAll,
   onGenerateOne,
   generatingKey,
-  hasApiKey,
+  hasLlmHost,
 }: ConversationTopicsPanelProps) {
   const otherCharacters = allCharacters.filter((c) => c.id !== subject.id);
   const topics = subject.interactionTopics || {};
@@ -47,10 +47,10 @@ export function ConversationTopicsPanel({
           active={filterOpen}
           onClick={() => setFilterOpen((open) => !open)}
         />
-        {hasApiKey && otherCharacters.length > 0 && (
+        {hasLlmHost && otherCharacters.length > 0 && (
           <AiSparkButton
             onClick={onRegenerateAll}
-            disabled={generatingKey === 'topics:all' || !hasApiKey}
+            disabled={generatingKey === 'topics:all' || !hasLlmHost}
             busy={generatingKey === 'topics:all'}
             title="Suggest topics for all islanders"
           />
@@ -85,10 +85,10 @@ export function ConversationTopicsPanel({
                   <div className="topic-islander">
                     <CharacterAvatar character={char} size="sm" />
                     <span className="topic-islander-name">{char.name}</span>
-                    {hasApiKey && (
+                    {hasLlmHost && (
                       <AiSparkButton
                         onClick={() => onGenerateOne(char.id)}
-                        disabled={isGeneratingThis || !hasApiKey}
+                        disabled={isGeneratingThis || !hasLlmHost}
                         busy={isGeneratingThis}
                         title={`Suggest topic for ${char.name}`}
                       />

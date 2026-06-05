@@ -13,7 +13,7 @@ function sampleEntry(id: string, operation: string): AiLogEntry {
     operation,
     prompt: 'test prompt',
     request: {
-      model: 'gemini-2.5-flash',
+      model: 'local-model',
       maxOutputTokens: 256,
       body: { contents: [] },
     },

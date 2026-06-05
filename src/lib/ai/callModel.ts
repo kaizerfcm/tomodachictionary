@@ -1,12 +1,20 @@
+import { finalizePrompt } from './prompts';
 import { appendAiLog } from './aiLogStore';
 import { AiError } from './errors';
+import { extractJsonString } from './parseModelJson';
 
-// Upgraded from gemini-2.5-flash-lite to gemini-2.5-flash for better deep-cut retrieval
-const GEMINI_MODEL = 'gemini-2.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const LLM_PORT = 1234;
+const MAX_CONTINUATION_ROUNDS = 16;
+export const DEFAULT_LLM_TIMEOUT_MS = 5 * 60 * 1000;
+export const BATCH_LLM_TIMEOUT_MS = 15 * 60 * 1000;
 
-export const DEFAULT_GEMINI_TIMEOUT_MS = 3 * 60 * 1000;
-export const BATCH_GEMINI_TIMEOUT_MS = 10 * 60 * 1000;
+const LOCAL_SYSTEM_PROMPT = `You generate JSON for a Tomodachi Life character dictionary app running on a local model.
+
+Output rules (critical):
+- Reply with valid JSON only. No markdown fences, no commentary, no text before or after the JSON.
+- Use double quotes for all JSON strings.
+- Complete the requested JSON object. If you run out of space mid-JSON, stop exactly where you are; the app will ask you to continue.
+- On continue requests, output ONLY the remaining JSON fragment — do not repeat earlier content.`;
 
 export interface ModelCallOptions {
   prompt: string;
@@ -21,6 +29,11 @@ export interface ModelCallResult {
   text: string;
   finishReason?: string;
 }
+
+type ChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
 
 function linkAbortSignals(signals: AbortSignal[]): AbortSignal {
   const controller = new AbortController();
@@ -43,114 +56,170 @@ function timeoutAbort(ms: number): { signal: AbortSignal; clear: () => void } {
   };
 }
 
-export async function callGemini(
-  apiKey: string,
+export function buildLlmUrl(host: string): string {
+  const trimmed = host.trim();
+  if (!trimmed) {
+    throw new AiError('Add the local LLM IP in Configuration');
+  }
+  const withoutScheme = trimmed.replace(/^https?:\/\//i, '');
+  const hostOnly = withoutScheme.split('/')[0]?.split(':')[0]?.trim();
+  if (!hostOnly) {
+    throw new AiError('Invalid LLM IP in Configuration');
+  }
+  return `http://${hostOnly}:${LLM_PORT}/v1/chat/completions`;
+}
+
+function isJsonComplete(text: string): boolean {
+  if (!text.trim()) return false;
+  try {
+    JSON.parse(extractJsonString(text));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function shouldContinue(finishReason: string | undefined, text: string): boolean {
+  if (finishReason === 'length' || finishReason === 'max_tokens') return true;
+  return !isJsonComplete(text);
+}
+
+export async function callLocalLlm(
+  llmHost: string,
   options: ModelCallOptions,
 ): Promise<ModelCallResult> {
-  const key = apiKey.trim();
-  if (!key) {
-    throw new AiError('Add a Gemini API key in Configuration');
-  }
-
   if (options.signal?.aborted) {
     throw new AiError('Generation cancelled');
   }
 
+  const url = buildLlmUrl(llmHost);
   const started = Date.now();
-  const operation = options.operation ?? 'gemini';
-  const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS;
+  const operation = options.operation ?? 'local-llm';
+  const timeoutMs = options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
   const timeout = timeoutAbort(timeoutMs);
   const signal = linkAbortSignals(
     [options.signal, timeout.signal].filter(Boolean) as AbortSignal[],
   );
 
-  const requestBody = {
-    contents: [{ parts: [{ text: options.prompt }] }],
-    generationConfig: {
-      temperature: 0.85,
-      maxOutputTokens: options.maxOutputTokens,
-      responseMimeType: 'application/json',
-    },
+  const messages: ChatMessage[] = [
+    { role: 'system', content: LOCAL_SYSTEM_PROMPT },
+    { role: 'user', content: finalizePrompt(options.prompt) },
+  ];
+
+  let fullText = '';
+  let lastFinishReason: string | undefined;
+  let logStatus: 'ok' | 'error' = 'error';
+  let errorMessage: string | undefined;
+  let continuationCount = 0;
+
+  const requestMeta = {
+    url,
+    maxOutputTokens: options.maxOutputTokens,
+    model: 'local-model',
   };
 
-  let logStatus: 'ok' | 'error' = 'error';
-  let responseText: string | undefined;
-  let finishReason: string | undefined;
-  let errorMessage: string | undefined;
-
   try {
-    let res: Response;
-    try {
-      res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal,
-        body: JSON.stringify(requestBody),
-      });
-    } catch (e) {
-      if (
-        options.signal?.aborted ||
-        (e instanceof DOMException && e.name === 'AbortError') ||
-        (e instanceof Error && e.name === 'AbortError')
-      ) {
-        if (timeout.signal.aborted && !options.signal?.aborted) {
-          throw new AiError(
-            `Request timed out after ${Math.round(timeoutMs / 1000)}s`,
-          );
-        }
+    for (let round = 0; round <= MAX_CONTINUATION_ROUNDS; round += 1) {
+      if (options.signal?.aborted) {
         throw new AiError('Generation cancelled');
       }
-      throw new AiError(e instanceof Error ? e.message : 'Network error');
-    }
-
-    if (options.signal?.aborted) {
-      throw new AiError('Generation cancelled');
-    }
-
-    if (timeout.signal.aborted && !options.signal?.aborted) {
-      throw new AiError(
-        `Request timed out after ${Math.round(timeoutMs / 1000)}s`,
-      );
-    }
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      let message = `Gemini API error (${res.status})`;
-      try {
-        const parsed = JSON.parse(errBody) as {
-          error?: { message?: string };
-        };
-        if (parsed.error?.message) message = parsed.error.message;
-      } catch {
-        if (errBody) message = errBody.slice(0, 200);
+      if (timeout.signal.aborted && !options.signal?.aborted) {
+        throw new AiError(
+          `Request timed out after ${Math.round(timeoutMs / 1000)}s`,
+        );
       }
-      throw new AiError(message);
+
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal,
+          body: JSON.stringify({
+            model: 'local-model',
+            messages,
+            temperature: 0.7,
+            max_tokens: options.maxOutputTokens,
+            stream: false,
+          }),
+        });
+      } catch (e) {
+        if (
+          options.signal?.aborted ||
+          (e instanceof DOMException && e.name === 'AbortError') ||
+          (e instanceof Error && e.name === 'AbortError')
+        ) {
+          if (timeout.signal.aborted && !options.signal?.aborted) {
+            throw new AiError(
+              `Request timed out after ${Math.round(timeoutMs / 1000)}s`,
+            );
+          }
+          throw new AiError('Generation cancelled');
+        }
+        throw new AiError(
+          e instanceof Error
+            ? `Could not reach local LLM at ${url}: ${e.message}`
+            : 'Could not reach local LLM',
+        );
+      }
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        let message = `Local LLM error (${res.status})`;
+        try {
+          const parsed = JSON.parse(errBody) as {
+            error?: { message?: string };
+          };
+          if (parsed.error?.message) message = parsed.error.message;
+        } catch {
+          if (errBody) message = errBody.slice(0, 200);
+        }
+        throw new AiError(message);
+      }
+
+      const data = (await res.json()) as {
+        choices?: {
+          message?: { content?: string };
+          finish_reason?: string;
+        }[];
+      };
+
+      const choice = data.choices?.[0];
+      const chunk = choice?.message?.content ?? '';
+      if (!chunk && round === 0) {
+        throw new AiError('Empty response from local LLM');
+      }
+
+      fullText += chunk;
+      lastFinishReason = choice?.finish_reason;
+
+      if (!shouldContinue(lastFinishReason, fullText)) {
+        break;
+      }
+
+      if (round >= MAX_CONTINUATION_ROUNDS) {
+        throw new AiError(
+          'Local LLM output was still incomplete after multiple continuations',
+        );
+      }
+
+      continuationCount += 1;
+      messages.push({ role: 'assistant', content: chunk });
+      messages.push({
+        role: 'user',
+        content:
+          'Continue the JSON exactly where you stopped. Output ONLY the remaining JSON fragment needed to complete valid JSON. Do not repeat any earlier text.',
+      });
     }
 
-    const data = (await res.json()) as {
-      candidates?: {
-        content?: { parts?: { text?: string }[] };
-        finishReason?: string;
-      }[];
-      promptFeedback?: { blockReason?: string };
-    };
-
-    const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.[0]?.text;
-    if (!text) {
-      const block = data.promptFeedback?.blockReason;
-      throw new AiError(
-        block ? `Blocked by Gemini: ${block}` : 'Empty response from Gemini',
-      );
+    if (!fullText.trim()) {
+      throw new AiError('Empty response from local LLM');
     }
 
     logStatus = 'ok';
-    responseText = text;
-    finishReason = candidate?.finishReason;
-
     return {
-      text,
-      finishReason,
+      text: fullText,
+      finishReason: lastFinishReason,
     };
   } catch (e) {
     errorMessage =
@@ -166,15 +235,15 @@ export async function callGemini(
       id: crypto.randomUUID(),
       timestamp: started,
       operation,
-      prompt: options.prompt,
+      prompt: finalizePrompt(options.prompt),
       request: {
-        model: GEMINI_MODEL,
-        maxOutputTokens: options.maxOutputTokens,
-        body: requestBody,
+        ...requestMeta,
+        continuationCount,
+        body: { messages: messages.slice(0, 4) },
       },
       response:
-        responseText != null
-          ? { text: responseText, finishReason }
+        fullText.trim().length > 0
+          ? { text: fullText, finishReason: lastFinishReason }
           : undefined,
       error: errorMessage,
       durationMs: Date.now() - started,

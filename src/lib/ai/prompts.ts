@@ -11,6 +11,20 @@ import { isShortPhraseType } from '../textLimits';
 import { formatAiGiftsRulesForPrompt } from '../livingTheDreamGifts';
 import { serializeIslandJsonCompact } from '../islandJson';
 
+const LOCAL_LLM_PROMPT_PREFIX = `LOCAL MODEL TASK:
+- You are generating JSON for a Tomodachi Life dictionary app.
+- Output exactly one JSON object. No markdown fences, no explanation.
+- Use short canon-accurate strings. Prefer fewer, sharper options over filler.
+- If you cannot finish the JSON in one reply, stop cleanly and wait for a continue message.
+
+`;
+
+function finalizePrompt(body: string): string {
+  return `${LOCAL_LLM_PROMPT_PREFIX}${body}`;
+}
+
+export { finalizePrompt };
+
 const PHRASE_TYPE_LIST = PHRASE_TYPES.map(
   (t) => `- ${t.key}: "${t.label}"`,
 ).join('\n');

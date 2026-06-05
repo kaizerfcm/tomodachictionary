@@ -1,9 +1,9 @@
 import type { Character, DictionaryData } from '../../types';
 import { migrateCharacter } from '../../types';
-import { buildIslandRegenerateBatchPrompt } from '../gemini/prompts';
+import { buildIslandRegenerateBatchPrompt } from './prompts';
 import {
-  BATCH_GEMINI_TIMEOUT_MS,
-  callGemini,
+  BATCH_LLM_TIMEOUT_MS,
+  callLocalLlm,
   type ModelCallOptions,
 } from './callModel';
 import { AiError } from './errors';
@@ -111,7 +111,7 @@ export function islandBatchOutputTokenBudget(characterCount: number): number {
 }
 
 export async function generateIslandBatchRegeneration(
-  apiKey: string,
+  llmHost: string,
   characters: Character[],
   options?: IslandBatchRegenOptions,
 ): Promise<IslandBatchRegenResult> {
@@ -123,12 +123,12 @@ export async function generateIslandBatchRegeneration(
   const prompt = buildIslandRegenerateBatchPrompt(payload);
   const maxOutputTokens = islandBatchOutputTokenBudget(characters.length);
 
-  const { text, finishReason } = await callGemini(apiKey, {
+  const { text, finishReason } = await callLocalLlm(llmHost, {
     prompt,
     maxOutputTokens,
     signal: options?.signal,
     operation: 'island-batch-regeneration',
-    timeoutMs: BATCH_GEMINI_TIMEOUT_MS,
+    timeoutMs: BATCH_LLM_TIMEOUT_MS,
   });
 
   return parseBatchResponse(text, finishReason, characters);

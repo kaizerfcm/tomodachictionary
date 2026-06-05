@@ -24,7 +24,7 @@ interface NicknamePanelProps {
   onUpdateIncomingAt: (speakerId: string, index: number, value: string) => void;
   onAddIncoming: (speakerId: string) => void;
   onRemoveIncoming: (speakerId: string, index: number) => void;
-  hasApiKey?: boolean;
+  hasLlmHost?: boolean;
   communityNicknamesEnabled?: boolean;
   generatingKey?: string | null;
   onGenerateDefault?: () => void;
@@ -197,7 +197,7 @@ export function NicknamePanel({
   onUpdateIncomingAt,
   onAddIncoming,
   onRemoveIncoming,
-  hasApiKey,
+  hasLlmHost,
   communityNicknamesEnabled,
   generatingKey,
   onGenerateDefault,
@@ -239,7 +239,7 @@ export function NicknamePanel({
           active={filterOpen}
           onClick={() => setFilterOpen((open) => !open)}
         />
-        {hasApiKey && onRegenerateAll && others.length > 0 && (
+        {hasLlmHost && onRegenerateAll && others.length > 0 && (
           <AiSparkButton
             busy={generatingKey === 'nicknames:all'}
             disabled={generatingKey === 'nicknames:all'}
@@ -294,7 +294,7 @@ export function NicknamePanel({
                 onAddNickname={onAddDefaultNickname}
               />
             )}
-            {hasApiKey && onGenerateDefault && (
+            {hasLlmHost && onGenerateDefault && (
               <AiSparkButton
                 busy={generatingKey === 'nick:default'}
                 disabled={!canAddDefault}

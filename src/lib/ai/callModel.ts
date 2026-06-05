@@ -1,8 +1,8 @@
 import { appendAiLog } from './aiLogStore';
 import { AiError } from './errors';
 import {
+  LLM_CORS_PROXY_PORT,
   LLM_MODEL_ID,
-  LLM_PORT,
   LOCAL_SYSTEM_PROMPT,
 } from './localLlmConfig';
 import { extractJsonString } from './parseModelJson';
@@ -63,7 +63,7 @@ function timeoutAbort(ms: number): { signal: AbortSignal; clear: () => void } {
   };
 }
 
-export function buildLlmUrl(host: string): string {
+export function resolveLlmHost(host: string): string {
   const trimmed = host.trim();
   if (!trimmed) {
     throw new AiError('Add the local LLM IP in Configuration');
@@ -73,7 +73,22 @@ export function buildLlmUrl(host: string): string {
   if (!hostOnly) {
     throw new AiError('Invalid LLM IP in Configuration');
   }
-  return `http://${hostOnly}:${LLM_PORT}/api/v1/chat`;
+  return hostOnly;
+}
+
+/** Same-origin Vite proxy path (dev/preview only). */
+export const LLM_PROXY_PATH = '/llm-api/v1/chat';
+
+export function buildLlmUrl(
+  host: string,
+  options?: { useDevProxy?: boolean },
+): string {
+  const hostOnly = resolveLlmHost(host);
+  const useDevProxy = options?.useDevProxy ?? import.meta.env.DEV;
+  if (useDevProxy) {
+    return LLM_PROXY_PATH;
+  }
+  return `http://${hostOnly}:${LLM_CORS_PROXY_PORT}/api/v1/chat`;
 }
 
 export function extractLmStudioMessageText(data: LmStudioChatResponse): string {
@@ -112,6 +127,7 @@ export async function callLocalLlm(
   }
 
   const url = buildLlmUrl(llmHost);
+  const llmHostHeader = resolveLlmHost(llmHost);
   const started = Date.now();
   const operation = options.operation ?? 'local-llm';
   const timeoutMs = options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
@@ -130,6 +146,7 @@ export async function callLocalLlm(
 
   const requestMeta = {
     url,
+    targetHost: llmHostHeader,
     maxOutputTokens: options.maxOutputTokens,
     model: LLM_MODEL_ID,
   };
@@ -160,7 +177,10 @@ export async function callLocalLlm(
       try {
         res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-LLM-Host': llmHostHeader,
+          },
           signal,
           body: JSON.stringify(body),
         });

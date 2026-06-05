@@ -3,6 +3,9 @@ export const LLM_MODEL_ID = 'gemma-4-12b-it-heretic';
 
 export const LLM_PORT = 1234;
 
+/** Local CORS proxy port — run `npm run llm-proxy` when using the deployed site. */
+export const LLM_CORS_PROXY_PORT = 1235;
+
 /** Sent on every `/api/v1/chat` request as `system_prompt`. */
 export const LOCAL_SYSTEM_PROMPT = `You generate JSON for Tomodachi Life: Living the Dream — a character dialogue and nickname dictionary app.
 

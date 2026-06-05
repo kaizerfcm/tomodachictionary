@@ -11,4 +11,4 @@ npm run dev
 npm run build
 ```
 
-Web app — static `dist/` (e.g. Vercel). Optional local LLM IP in Configuration for Canon AI generation (LM Studio on port 1234). See [docs/lmstudio/SETUP.md](docs/lmstudio/SETUP.md).
+Web app — static `dist/` (e.g. Vercel). Optional local LLM IP in Configuration for Canon AI generation (LM Studio on port 1234). When using the **deployed** site against a local LLM, run `npm run llm-proxy` on the same PC. See [docs/lmstudio/SETUP.md](docs/lmstudio/SETUP.md).

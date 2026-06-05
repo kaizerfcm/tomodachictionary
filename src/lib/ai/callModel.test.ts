@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { buildLlmUrl, extractLmStudioMessageText } from './callModel';
+import { buildLlmUrl, extractLmStudioMessageText, resolveLlmHost } from './callModel';
 
 describe('callModel', () => {
-  it('builds LM Studio native chat URL', () => {
-    expect(buildLlmUrl('127.0.0.1')).toBe(
-      'http://127.0.0.1:1234/api/v1/chat',
+  it('uses Vite proxy path in dev', () => {
+    expect(buildLlmUrl('127.0.0.1', { useDevProxy: true })).toBe(
+      '/llm-api/v1/chat',
     );
-    expect(buildLlmUrl('localhost')).toBe(
-      'http://localhost:1234/api/v1/chat',
+  });
+
+  it('uses local CORS proxy in production builds', () => {
+    expect(buildLlmUrl('127.0.0.1', { useDevProxy: false })).toBe(
+      'http://127.0.0.1:1235/api/v1/chat',
     );
+    expect(buildLlmUrl('localhost', { useDevProxy: false })).toBe(
+      'http://localhost:1235/api/v1/chat',
+    );
+  });
+
+  it('resolves configured host for proxy header', () => {
+    expect(resolveLlmHost('localhost')).toBe('localhost');
+    expect(resolveLlmHost('192.168.1.50')).toBe('192.168.1.50');
   });
 
   it('extracts message text from LM Studio output array', () => {

@@ -1,64 +1,107 @@
 # LM Studio setup for Tomodict
 
-Tomodict talks to LM Studio's **native REST API** at `http://{IP}:1234/api/v1/chat` (not the OpenAI `/v1/chat/completions` endpoint).
+Tomodict uses LM Studio's **native REST API** (`POST /api/v1/chat` with `system_prompt` + `input`).
+
+## How requests reach LM Studio
+
+| Where you open Tomodict | What happens |
+| --- | --- |
+| `npm run dev` / `npm run preview` | Vite proxies `/llm-api/v1/chat` → LM Studio (no extra setup) |
+| **Deployed site** (Vercel, etc.) | Browser calls a **local CORS proxy** on your PC → LM Studio |
+
+Browsers block deployed HTTPS sites from calling LM Studio directly (CORS + private network rules). The local proxy fixes that.
+
+---
 
 ## 1. Load the model
 
 1. Open LM Studio.
-2. Load **`gemma-4-12b-it-heretic`** (or your preferred Gemma build).
-3. Note the exact model identifier shown in LM Studio — it must match `LLM_MODEL_ID` in `src/lib/ai/localLlmConfig.ts` (currently `gemma-4-12b-it-heretic`).
+2. Load **`gemma-4-12b-it-heretic`**.
+3. Match `LLM_MODEL_ID` in `src/lib/ai/localLlmConfig.ts` (currently `gemma-4-12b-it-heretic`).
 
-## 2. Import the preset
+## 2. Import the preset (optional)
 
-1. In LM Studio, open the **Presets** dropdown in the sidebar.
-2. Click **Import** → **Import from file**.
-3. Select [`tomodict-canon-json.preset.json`](./tomodict-canon-json.preset.json) from this folder.
-4. Select the imported **Tomodict — Canon JSON** preset before testing in the LM Studio chat UI.
+1. Presets dropdown → **Import** → **Import from file**
+2. Select [`tomodict-canon-json.preset.json`](./tomodict-canon-json.preset.json)
+3. Use **Tomodict — Canon JSON** when testing in LM Studio chat
 
-The preset sets temperature, repeat penalty, context length, and a system prompt aligned with the app. Tomodict still sends its own `system_prompt` on every API request, so generation works even if the preset is not selected — the preset is mainly for manual testing inside LM Studio.
+Tomodict sends its own `system_prompt` on every API call, so the preset is mainly for manual LM Studio testing.
 
-### Recommended preset values
+## 3. Start LM Studio server
 
-| Setting | Value | Why |
-| --- | --- | --- |
-| Temperature | 0.7 | Canon-accurate but not totally flat |
-| Repeat penalty | 1.15 | Reduces looping on long JSON |
-| Context length | 8192 | Room for large phrase/nickname batches |
-| Top P | 0.9 | Default nucleus sampling |
+1. Local Server tab → start on port **1234**
+2. Confirm the model is loaded
 
-## 3. Start the local server
-
-1. Open the **Local Server** tab in LM Studio.
-2. Start the server on port **1234** (default).
-3. Confirm the server is running.
-
-Quick test (should return rhyming JSON-free text):
+Direct test:
 
 ```bash
 curl http://localhost:1234/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d "{
-    \"model\": \"gemma-4-12b-it-heretic\",
-    \"system_prompt\": \"Reply with JSON only: {\\\"ok\\\": true}\",
-    \"input\": \"Return the JSON now.\"
-  }"
+  -d "{\"model\":\"gemma-4-12b-it-heretic\",\"system_prompt\":\"Reply with JSON only: {\\\"ok\\\": true}\",\"input\":\"Return the JSON now.\"}"
 ```
 
-## 4. Configure Tomodict
+---
 
-1. Open Tomodict → **Configuration**.
-2. Set **IP** to `127.0.0.1` (same machine) or your PC's LAN IP if Tomodict runs on another device.
-3. Use any ✨ Canon AI button.
+## 4a. Local development (`npm run dev`)
+
+1. Tomodict → Configuration → IP = `127.0.0.1`
+2. Use Canon AI — Vite handles the proxy automatically
+
+---
+
+## 4b. Deployed site + local LLM (your setup)
+
+**Requirements:** Tomodict open in browser on the **same PC** that runs LM Studio.
+
+1. Start LM Studio (port 1234, model loaded)
+2. In the Tomodict repo, run:
+
+```bash
+npm run llm-proxy
+```
+
+This starts a CORS proxy on `http://127.0.0.1:1235/api/v1/chat` that forwards to LM Studio.
+
+3. Open your **deployed** Tomodict URL in the browser (same machine)
+4. Configuration → IP = `127.0.0.1`
+5. Use Canon AI
+
+Keep `npm run llm-proxy` running in a terminal while testing.
+
+### Another device on your network?
+
+LM Studio must be reachable from that device. Run the proxy listening on all interfaces:
+
+```bash
+set LLM_PROXY_LISTEN=0.0.0.0
+npm run llm-proxy
+```
+
+Set IP in Tomodict to your PC's LAN address (e.g. `192.168.1.50`). Your firewall must allow inbound port **1235**.
+
+---
+
+## 4c. Remote access (phone / different network)
+
+A deployed site **cannot** reach your home PC without a tunnel. Options:
+
+- **Cloudflare Tunnel** or **ngrok** exposing port 1234 or the CORS proxy
+- You would need a full HTTPS URL in settings (not supported yet — IP-only field targets same-machine / LAN use)
+
+For most testing, use the deployed site on the same PC as LM Studio with `npm run llm-proxy`.
+
+---
 
 ## Troubleshooting
 
 | Error | Fix |
 | --- | --- |
-| `'messages' field is required` | Wrong endpoint — update Tomodict to the latest build (uses `/api/v1/chat`, not OpenAI format). |
-| `Could not reach local LLM` | Server not started, wrong IP, or firewall blocking port 1234. |
-| `Empty response from local LLM` | Model not loaded, or model id in `localLlmConfig.ts` does not match LM Studio. |
-| Truncated / invalid JSON | Normal for large jobs — Tomodict auto-continues up to 16 rounds. Increase context length in LM Studio if it keeps failing. |
+| `OPTIONS /api/v1/chat` in LM Studio logs | Browser hit LM Studio directly — use `npm run llm-proxy` on deployed, or `npm run dev` locally |
+| `Could not reach local LLM` | LM Studio not running, proxy not running (`npm run llm-proxy`), or wrong IP |
+| `LM Studio unreachable at …:1234` | Start LM Studio server; check model is loaded |
+| `Empty response from local LLM` | Model id mismatch — update `LLM_MODEL_ID` in `localLlmConfig.ts` |
+| Truncated / invalid JSON | Tomodict auto-continues up to 16 rounds; increase context length in LM Studio |
 
 ## Changing the model
 
-Edit `LLM_MODEL_ID` in `src/lib/ai/localLlmConfig.ts` to match whatever model identifier LM Studio shows when that model is loaded.
+Edit `LLM_MODEL_ID` in `src/lib/ai/localLlmConfig.ts`.

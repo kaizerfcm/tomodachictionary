@@ -1,20 +1,18 @@
-import { finalizePrompt } from './prompts';
 import { appendAiLog } from './aiLogStore';
 import { AiError } from './errors';
+import {
+  LLM_MODEL_ID,
+  LLM_PORT,
+  LOCAL_SYSTEM_PROMPT,
+} from './localLlmConfig';
 import { extractJsonString } from './parseModelJson';
 
-const LLM_PORT = 1234;
 const MAX_CONTINUATION_ROUNDS = 16;
 export const DEFAULT_LLM_TIMEOUT_MS = 5 * 60 * 1000;
 export const BATCH_LLM_TIMEOUT_MS = 15 * 60 * 1000;
 
-const LOCAL_SYSTEM_PROMPT = `You generate JSON for a Tomodachi Life character dictionary app running on a local model.
-
-Output rules (critical):
-- Reply with valid JSON only. No markdown fences, no commentary, no text before or after the JSON.
-- Use double quotes for all JSON strings.
-- Complete the requested JSON object. If you run out of space mid-JSON, stop exactly where you are; the app will ask you to continue.
-- On continue requests, output ONLY the remaining JSON fragment — do not repeat earlier content.`;
+const CONTINUE_INPUT =
+  'Continue the JSON exactly where you stopped. Output ONLY the remaining JSON fragment needed to complete valid JSON. Do not repeat any earlier text.';
 
 export interface ModelCallOptions {
   prompt: string;
@@ -30,9 +28,18 @@ export interface ModelCallResult {
   finishReason?: string;
 }
 
-type ChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+type LmStudioOutputItem = {
+  type?: string;
+  content?: string;
+};
+
+type LmStudioChatResponse = {
+  output?: LmStudioOutputItem[];
+  response_id?: string;
+  error?: string | { message?: string };
+  stats?: {
+    total_output_tokens?: number;
+  };
 };
 
 function linkAbortSignals(signals: AbortSignal[]): AbortSignal {
@@ -66,7 +73,20 @@ export function buildLlmUrl(host: string): string {
   if (!hostOnly) {
     throw new AiError('Invalid LLM IP in Configuration');
   }
-  return `http://${hostOnly}:${LLM_PORT}/v1/chat/completions`;
+  return `http://${hostOnly}:${LLM_PORT}/api/v1/chat`;
+}
+
+export function extractLmStudioMessageText(data: LmStudioChatResponse): string {
+  return (data.output ?? [])
+    .filter((item) => item.type === 'message' && item.content)
+    .map((item) => item.content!)
+    .join('');
+}
+
+function parseLmStudioError(data: LmStudioChatResponse): string | null {
+  if (!data.error) return null;
+  if (typeof data.error === 'string') return data.error;
+  return data.error.message ?? 'Local LLM error';
 }
 
 function isJsonComplete(text: string): boolean {
@@ -79,8 +99,7 @@ function isJsonComplete(text: string): boolean {
   }
 }
 
-function shouldContinue(finishReason: string | undefined, text: string): boolean {
-  if (finishReason === 'length' || finishReason === 'max_tokens') return true;
+function shouldContinue(text: string): boolean {
   return !isJsonComplete(text);
 }
 
@@ -101,21 +120,18 @@ export async function callLocalLlm(
     [options.signal, timeout.signal].filter(Boolean) as AbortSignal[],
   );
 
-  const messages: ChatMessage[] = [
-    { role: 'system', content: LOCAL_SYSTEM_PROMPT },
-    { role: 'user', content: finalizePrompt(options.prompt) },
-  ];
-
   let fullText = '';
   let lastFinishReason: string | undefined;
   let logStatus: 'ok' | 'error' = 'error';
   let errorMessage: string | undefined;
   let continuationCount = 0;
+  let previousResponseId: string | undefined;
+  let input = options.prompt;
 
   const requestMeta = {
     url,
     maxOutputTokens: options.maxOutputTokens,
-    model: 'local-model',
+    model: LLM_MODEL_ID,
   };
 
   try {
@@ -129,19 +145,24 @@ export async function callLocalLlm(
         );
       }
 
+      const body: Record<string, unknown> = {
+        model: LLM_MODEL_ID,
+        system_prompt: LOCAL_SYSTEM_PROMPT,
+        input,
+        temperature: 0.7,
+        context_length: Math.max(8192, options.maxOutputTokens * 2),
+      };
+      if (previousResponseId) {
+        body.previous_response_id = previousResponseId;
+      }
+
       let res: Response;
       try {
         res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal,
-          body: JSON.stringify({
-            model: 'local-model',
-            messages,
-            temperature: 0.7,
-            max_tokens: options.maxOutputTokens,
-            stream: false,
-          }),
+          body: JSON.stringify(body),
         });
       } catch (e) {
         if (
@@ -168,32 +189,35 @@ export async function callLocalLlm(
         let message = `Local LLM error (${res.status})`;
         try {
           const parsed = JSON.parse(errBody) as {
-            error?: { message?: string };
+            error?: string | { message?: string };
           };
-          if (parsed.error?.message) message = parsed.error.message;
+          if (typeof parsed.error === 'string') message = parsed.error;
+          else if (parsed.error?.message) message = parsed.error.message;
         } catch {
           if (errBody) message = errBody.slice(0, 200);
         }
         throw new AiError(message);
       }
 
-      const data = (await res.json()) as {
-        choices?: {
-          message?: { content?: string };
-          finish_reason?: string;
-        }[];
-      };
+      const data = (await res.json()) as LmStudioChatResponse;
+      const apiError = parseLmStudioError(data);
+      if (apiError) {
+        throw new AiError(apiError);
+      }
 
-      const choice = data.choices?.[0];
-      const chunk = choice?.message?.content ?? '';
+      const chunk = extractLmStudioMessageText(data);
       if (!chunk && round === 0) {
         throw new AiError('Empty response from local LLM');
       }
 
       fullText += chunk;
-      lastFinishReason = choice?.finish_reason;
+      previousResponseId = data.response_id;
+      lastFinishReason =
+        shouldContinue(fullText) && round < MAX_CONTINUATION_ROUNDS
+          ? 'length'
+          : 'stop';
 
-      if (!shouldContinue(lastFinishReason, fullText)) {
+      if (!shouldContinue(fullText)) {
         break;
       }
 
@@ -204,12 +228,7 @@ export async function callLocalLlm(
       }
 
       continuationCount += 1;
-      messages.push({ role: 'assistant', content: chunk });
-      messages.push({
-        role: 'user',
-        content:
-          'Continue the JSON exactly where you stopped. Output ONLY the remaining JSON fragment needed to complete valid JSON. Do not repeat any earlier text.',
-      });
+      input = CONTINUE_INPUT;
     }
 
     if (!fullText.trim()) {
@@ -235,11 +254,15 @@ export async function callLocalLlm(
       id: crypto.randomUUID(),
       timestamp: started,
       operation,
-      prompt: finalizePrompt(options.prompt),
+      prompt: options.prompt,
       request: {
         ...requestMeta,
         continuationCount,
-        body: { messages: messages.slice(0, 4) },
+        body: {
+          model: LLM_MODEL_ID,
+          system_prompt: LOCAL_SYSTEM_PROMPT,
+          input: options.prompt,
+        },
       },
       response:
         fullText.trim().length > 0
